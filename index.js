@@ -1,4 +1,7 @@
 import express from "express";
+import { initDatabase } from "./db/init.js";
+
+initDatabase();
 
 const app = express();
 app.use(express.json());
