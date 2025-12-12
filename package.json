@@ -7,7 +7,22 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "axios": "^1.13.2",
+    "body-parser": "^2.2.1",
+    "dotenv": "^17.2.3",
+    "express": "^4.22.1",
     "pg": "^8.16.3"
-  }
+  },
+  "description": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Niicolasl/mueblesnico-whatsapp-webhook.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Niicolasl/mueblesnico-whatsapp-webhook/issues"
+  },
+  "homepage": "https://github.com/Niicolasl/mueblesnico-whatsapp-webhook#readme"
 }
