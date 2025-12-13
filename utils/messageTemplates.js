@@ -27,23 +27,6 @@ export const noTienePedidos = () => ({
   }
 });
 
-export const infoPedidoUnico = (order) => ({
-  messaging_product: "whatsapp",
-  text: {
-    body:
-      `📦 *Estado de tu pedido ${order.order_code}*
-
-• Cliente: ${order.nombre_cliente}
-• Trabajo: ${order.descripcion_trabajo}
-• Total: $${order.valor_total}
-• Abonado: $${order.valor_abonado}
-• Saldo pendiente: $${order.saldo_pendiente}
-• Estado: *${order.estado_pedido}*
-${order.fecha_aprox_entrega ? `• Entrega estimada: ${order.fecha_aprox_entrega}` : ""}
-
-Si necesitas algo más escribe */menu*.`
-  }
-});
 
 export const seleccionarPedido = (orders) => ({
   messaging_product: "whatsapp",
