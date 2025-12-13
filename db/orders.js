@@ -1,5 +1,6 @@
 import pkg from "pg";
 const { Pool } = pkg;
+import pool from "./init.js";
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
@@ -127,3 +128,15 @@ export async function getOrder(order_code) {
     );
     return result.rows.length ? result.rows[0] : null;
 }
+
+
+export const getPedidosByPhone = async (telefono) => {
+    const clean = telefono.replace("+", "").trim();
+
+    const [rows] = await pool.query(
+        "SELECT * FROM orders WHERE cliente_whatsapp = ? ORDER BY id DESC",
+        [clean]
+    );
+
+    return rows;
+};
