@@ -1,10 +1,4 @@
-import pkg from "pg";
-const { Pool } = pkg;
-
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
-});
+import { pool } from "./init.js";
 
 // --- CONSULTAR SALDO PENDIENTE ---
 export const consultarSaldo = async (input) => {
