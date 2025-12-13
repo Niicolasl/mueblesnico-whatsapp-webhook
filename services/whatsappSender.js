@@ -1,16 +1,25 @@
 import axios from "axios";
 
-export async function sendMessage(to, body) {
-    await axios({
-        method: "POST",
-        url: `https://graph.facebook.com/v20.0/${process.env.PHONE_NUMBER_ID}/messages`,
-        headers: {
-            Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-            "Content-Type": "application/json",
-        },
-        data: {
-            to,
-            ...body
-        },
-    });
-}
+const token = process.env.WHATSAPP_TOKEN;
+const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+export const sendMessage = async (to, payload) => {
+    try {
+        await axios.post(
+            `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+            {
+                messaging_product: "whatsapp",
+                to,
+                ...payload,
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+            }
+        );
+    } catch (error) {
+        console.error("❌ Error enviando mensaje:", error.response?.data || error);
+    }
+};
