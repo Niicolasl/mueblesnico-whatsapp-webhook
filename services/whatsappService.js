@@ -37,7 +37,6 @@ export const handleMessage = async (req, res) => {
 
     const from = message.from;
     let text = message.text?.body?.trim() || "";
-    const textLower = text.toLowerCase();
     let interactiveId = null;
 
     if (message.interactive?.list_reply) {
@@ -110,7 +109,6 @@ export const handleMessage = async (req, res) => {
       if (input === "SALDO") {
         estado[from] = "esperando_dato_saldo";
         const p = pedirDatoSaldo();
-        p.to = from;
         await sendMessage(from, p);
         return res.sendStatus(200);
       }
