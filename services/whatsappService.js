@@ -25,6 +25,8 @@ const ADMINS = [
   "573125906313"
 ];
 
+
+
 export const handleMessage = async (req, res) => {
   try {
     const entry = req.body.entry?.[0];
@@ -34,21 +36,22 @@ export const handleMessage = async (req, res) => {
     if (!message) return res.sendStatus(200);
 
     const from = message.from;
+
     let text = message.text?.body?.trim() || "";
     let interactiveId = null;
 
-    if (message.interactive) {
-      if (message.interactive.list_reply) {
-        interactiveId = message.interactive.list_reply.id;
-      }
-      if (message.interactive.button_reply) {
-        interactiveId = message.interactive.button_reply.id;
-      }
+    if (message.interactive?.list_reply) {
+      interactiveId = message.interactive.list_reply.id;
     }
 
-    const input = interactiveId || text;
-    const inputLower = input.toLowerCase();
+    if (message.interactive?.button_reply) {
+      interactiveId = message.interactive.button_reply.id;
+    }
 
+    const input = interactiveId ?? text;
+    const inputLower = typeof input === "string" ? input.toLowerCase() : "";
+
+    console.log("📩 INPUT:", input);
 
     if (!global.estadoCliente) global.estadoCliente = {};
     const estado = global.estadoCliente;
@@ -56,10 +59,9 @@ export const handleMessage = async (req, res) => {
     const esAdmin = ADMINS.includes(from);
 
     // =====================================================
-    // 🟦 MENU (PRIORIDAD MÁXIMA)
+    // 🟦 MENU GLOBAL
     // =====================================================
-    if (["menu", "menú"].includes(inputLower)) {
-      // salir de cualquier flujo
+    if (inputLower === "menu" || inputLower === "menú") {
       delete estado[from];
       delete newOrderState[from];
 
@@ -72,108 +74,21 @@ export const handleMessage = async (req, res) => {
     // =====================================================
     // 🟩 ADMIN: NUEVO PEDIDO
     // =====================================================
-    if (esAdmin && textLower === "/nuevo_pedido") {
+    if (esAdmin && inputLower === "/nuevo_pedido") {
       await startNewOrderFlow(from);
       return res.sendStatus(200);
     }
 
     // =====================================================
-    // 🟥 ADMIN: CANCELAR PEDIDO
-    // =====================================================
-    if (esAdmin && textLower.startsWith("/cancelar")) {
-      const partes = text.split(" ");
-      const orderCode = partes[1]?.toUpperCase();
-
-      if (!orderCode) {
-        await sendMessage(from, {
-          messaging_product: "whatsapp",
-          text: { body: "❌ Uso correcto:\n/cancelar MN-2025-0004" }
-        });
-        return res.sendStatus(200);
-      }
-
-      const resultado = await cancelarPedido(orderCode);
-
-      if (!resultado) {
-        await sendMessage(from, {
-          messaging_product: "whatsapp",
-          text: { body: `❌ No se pudo cancelar ${orderCode}` }
-        });
-        return res.sendStatus(200);
-      }
-
-      await sendMessage(from, {
-        messaging_product: "whatsapp",
-        text: { body: `✅ Pedido *${orderCode}* cancelado.` }
-      });
-
-      const cliente = resultado.numero_whatsapp.replace("+", "");
-      await sendMessage(cliente, {
-        messaging_product: "whatsapp",
-        text: {
-          body: `❌ Tu pedido *${orderCode}* fue cancelado.\nEscribe *menu* si necesitas ayuda.`
-        }
-      });
-
-      return res.sendStatus(200);
-    }
-
-    // =====================================================
-    // 🟩 ADMIN: ANTICIPO
-    // =====================================================
-    if (esAdmin && textLower.startsWith("/anticipo")) {
-      const partes = text.split(" ");
-      if (partes.length !== 3) {
-        await sendMessage(from, {
-          messaging_product: "whatsapp",
-          text: { body: "❌ Uso:\n/anticipo MN-2025-0004 500000" }
-        });
-        return res.sendStatus(200);
-      }
-
-      const pedido = await registrarAnticipo(
-        partes[1].toUpperCase(),
-        Number(partes[2])
-      );
-
-      if (!pedido) {
-        await sendMessage(from, {
-          messaging_product: "whatsapp",
-          text: { body: "❌ Pedido no encontrado o cancelado." }
-        });
-        return res.sendStatus(200);
-      }
-
-      await sendMessage(from, {
-        messaging_product: "whatsapp",
-        text: {
-          body:
-            `✅ Anticipo registrado\n\n📦 ${pedido.order_code}\n💳 Saldo: $${Number(pedido.saldo_pendiente).toLocaleString()}`
-        }
-      });
-
-      const cliente = pedido.numero_whatsapp.replace("+", "");
-      await sendMessage(cliente, {
-        messaging_product: "whatsapp",
-        text: {
-          body:
-            `💰 Recibimos tu anticipo.\nSaldo pendiente: $${Number(pedido.saldo_pendiente).toLocaleString()}`
-        }
-      });
-
-      return res.sendStatus(200);
-    }
-
-    // =====================================================
-    // 🟨 CONTINUAR FLUJO NUEVO PEDIDO
+    // 🟨 ADMIN: CONTINUAR FLUJO
     // =====================================================
     if (esAdmin && newOrderState[from]) {
       await handleNewOrderStep(from, text);
       return res.sendStatus(200);
     }
-  
+
     // =====================================================
-    // 🟦 MENU LISTA (CLIENTE)
+    // 🟦 CLIENTE: OPCIONES DEL MENÚ
     // =====================================================
     if (!esAdmin) {
 
@@ -232,7 +147,7 @@ export const handleMessage = async (req, res) => {
     }
 
     // =====================================================
-    // TEXTO SALDO
+    // 🟪 TEXTO PARA SALDO
     // =====================================================
     if (estado[from] === "esperando_dato_saldo") {
       const pedidos = await consultarSaldo(text);
