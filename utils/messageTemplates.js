@@ -4,30 +4,67 @@ export const menuPrincipal = () => ({
   interactive: {
     type: "button",
     body: {
-      text: "👋 Bienvenido a *Muebles Nico*\n\n¿En qué podemos ayudarte?"
+      text: "👋 *Bienvenido a Muebles Nico*\n\nToca el botón para ver las opciones disponibles 👇"
     },
     action: {
       buttons: [
         {
           type: "reply",
           reply: {
-            id: "COTIZAR",
-            title: "🪑 Cotizar"
+            id: "MENU_LISTA",
+            title: "📋 Ver opciones"
           }
-        },
+        }
+      ]
+    }
+  }
+});
+
+export const menuLista = () => ({
+  messaging_product: "whatsapp",
+  type: "interactive",
+  interactive: {
+    type: "list",
+    body: {
+      text: "📋 *Menú principal*\n\nSelecciona una opción:"
+    },
+    action: {
+      button: "Abrir menú",
+      sections: [
         {
-          type: "reply",
-          reply: {
-            id: "SALDO",
-            title: "💰 Consultar saldo"
-          }
-        },
-        {
-          type: "reply",
-          reply: {
-            id: "PEDIDO",
-            title: "📦 Mi pedido"
-          }
+          title: "Opciones disponibles",
+          rows: [
+            {
+              id: "COTIZAR",
+              title: "🪑 Cotizar mueble",
+              description: "Solicitar una cotización"
+            },
+            {
+              id: "PEDIDO",
+              title: "📦 Estado de pedido",
+              description: "Ver cómo va tu pedido"
+            },
+            {
+              id: "SALDO",
+              title: "💰 Consultar saldo",
+              description: "Ver pagos y saldo pendiente"
+            },
+            {
+              id: "GARANTIA",
+              title: "🛡️ Garantía",
+              description: "Condiciones y soporte"
+            },
+            {
+              id: "TIEMPOS",
+              title: "⏱️ Tiempos de entrega",
+              description: "Plazos aproximados"
+            },
+            {
+              id: "ASESOR",
+              title: "📞 Hablar con asesor",
+              description: "Atención personalizada"
+            }
+          ]
         }
       ]
     }

@@ -2,6 +2,8 @@ import { consultarPedido } from "./orderService.js";
 import { consultarSaldo } from "../db/consultarSaldo.js";
 import { cancelarPedido } from "../db/cancelarPedido.js";
 import { registrarAnticipo } from "../db/anticipo.js";
+import { menuLista } from "../utils/messageTemplates.js";
+
 
 import {
   startNewOrderFlow,
@@ -164,6 +166,13 @@ export const handleMessage = async (req, res) => {
     if (message.type === "interactive" && message.interactive?.button_reply) {
       const id = message.interactive.button_reply.id;
 
+      if (id === "MENU_LISTA") {
+        const plantilla = menuLista();
+        plantilla.to = from;
+        await sendMessage(from, plantilla);
+        return res.sendStatus(200);
+      }
+
       if (id === "SALDO") {
         estado[from] = "esperando_dato_saldo";
         const p = pedirDatoSaldo();
@@ -178,6 +187,7 @@ export const handleMessage = async (req, res) => {
         await sendMessage(from, r);
         return res.sendStatus(200);
       }
+
     }
 
     // =====================================================
