@@ -34,8 +34,21 @@ export const handleMessage = async (req, res) => {
     if (!message) return res.sendStatus(200);
 
     const from = message.from;
-    const text = message.text?.body?.trim() || "";
-    const textLower = text.toLowerCase();
+    let text = message.text?.body?.trim() || "";
+    let interactiveId = null;
+
+    if (message.interactive) {
+      if (message.interactive.list_reply) {
+        interactiveId = message.interactive.list_reply.id;
+      }
+      if (message.interactive.button_reply) {
+        interactiveId = message.interactive.button_reply.id;
+      }
+    }
+
+    const input = interactiveId || text;
+    const inputLower = input.toLowerCase();
+
 
     if (!global.estadoCliente) global.estadoCliente = {};
     const estado = global.estadoCliente;
@@ -45,7 +58,7 @@ export const handleMessage = async (req, res) => {
     // =====================================================
     // 🟦 MENU (PRIORIDAD MÁXIMA)
     // =====================================================
-    if (["menu", "menú"].includes(textLower)) {
+    if (["menu", "menú"].includes(inputLower)) {
       // salir de cualquier flujo
       delete estado[from];
       delete newOrderState[from];
@@ -158,14 +171,28 @@ export const handleMessage = async (req, res) => {
       await handleNewOrderStep(from, text);
       return res.sendStatus(200);
     }
-
+  
     // =====================================================
-    // BOTONES
+    // 🟦 MENU LISTA (CLIENTE)
     // =====================================================
-    if (message.type === "interactive" && message.interactive?.button_reply) {
-      const id = message.interactive.button_reply.id;
+    if (!esAdmin) {
 
-      if (id === "SALDO") {
+      if (input === "COTIZAR") {
+        await sendMessage(from, {
+          messaging_product: "whatsapp",
+          text: { body: "🪑 Perfecto, cuéntanos qué mueble necesitas cotizar." }
+        });
+        return res.sendStatus(200);
+      }
+
+      if (input === "PEDIDO") {
+        const r = await consultarPedido(from);
+        r.to = from;
+        await sendMessage(from, r);
+        return res.sendStatus(200);
+      }
+
+      if (input === "SALDO") {
         estado[from] = "esperando_dato_saldo";
         const p = pedirDatoSaldo();
         p.to = from;
@@ -173,13 +200,35 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      if (id === "PEDIDO") {
-        const r = await consultarPedido(from);
-        r.to = from;
-        await sendMessage(from, r);
+      if (input === "GARANTIA") {
+        await sendMessage(from, {
+          messaging_product: "whatsapp",
+          text: {
+            body: "🛡️ Todos nuestros muebles cuentan con garantía por defectos de fabricación."
+          }
+        });
         return res.sendStatus(200);
       }
 
+      if (input === "TIEMPOS") {
+        await sendMessage(from, {
+          messaging_product: "whatsapp",
+          text: {
+            body: "⏱️ Los tiempos de entrega dependen del proyecto. Escríbenos para más detalle."
+          }
+        });
+        return res.sendStatus(200);
+      }
+
+      if (input === "ASESOR") {
+        await sendMessage(from, {
+          messaging_product: "whatsapp",
+          text: {
+            body: "📞 Un asesor te contactará pronto."
+          }
+        });
+        return res.sendStatus(200);
+      }
     }
 
     // =====================================================
