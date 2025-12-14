@@ -36,8 +36,8 @@ export const handleMessage = async (req, res) => {
     if (!message) return res.sendStatus(200);
 
     const from = message.from;
-
     let text = message.text?.body?.trim() || "";
+    const textLower = text.toLowerCase();
     let interactiveId = null;
 
     if (message.interactive?.list_reply) {
