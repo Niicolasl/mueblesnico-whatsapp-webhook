@@ -2,7 +2,6 @@ import { consultarPedido } from "./orderService.js";
 import { consultarSaldo } from "../db/consultarSaldo.js";
 import { cancelarPedido } from "../db/cancelarPedido.js";
 import { registrarAnticipo } from "../db/anticipo.js";
-import { menuLista } from "../utils/messageTemplates.js";
 
 
 import {
