@@ -4,19 +4,36 @@ export const menuPrincipal = () => ({
   interactive: {
     type: "button",
     body: {
-      text: "👋 *¡Bienvenido al menú de Muebles Nico!*\n\nSelecciona una opción:"
+      text: "👋 Bienvenido a *Muebles Nico*\n\n¿En qué podemos ayudarte?"
     },
     action: {
       buttons: [
-        { type: "reply", reply: { id: "COTIZAR", title: "📝 Cotizar" } },
-        { type: "reply", reply: { id: "SALDO", title: "💰 Consultar / Abonar saldo" } },
-        { type: "reply", reply: { id: "GARANTIA", title: "🛠 Garantía" } },
-        { type: "reply", reply: { id: "TIEMPOS", title: "⏳ Tiempos de entrega" } },
-        { type: "reply", reply: { id: "PEDIDO", title: "📦 Preguntar por mi pedido" } }
+        {
+          type: "reply",
+          reply: {
+            id: "COTIZAR",
+            title: "🪑 Cotizar"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: "SALDO",
+            title: "💰 Consultar saldo"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: "PEDIDO",
+            title: "📦 Mi pedido"
+          }
+        }
       ]
     }
   }
 });
+
 
 // --- PREGUNTAR POR MI PEDIDO ---
 
