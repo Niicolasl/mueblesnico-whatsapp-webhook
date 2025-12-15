@@ -34,19 +34,136 @@ export const handleMessage = async (req, res) => {
 
     const from = message.from;
 
-    console.log("📩 MENSAJE RECIBIDO DESDE:", from);
-    console.log("📦 MENSAJE RAW:", JSON.stringify(message, null, 2));
+    let text = message.text?.body?.trim() || "";
+    let interactiveId = null;
 
-    await sendMessage(from, {
-      type: "text",
-      text: {
-        body: "✅ RESPUESTA DE PRUEBA DIRECTA\n\nSi lees esto, WhatsApp SÍ está funcionando."
+    if (message.interactive?.list_reply) {
+      interactiveId = message.interactive.list_reply.id;
+    }
+
+    if (message.interactive?.button_reply) {
+      interactiveId = message.interactive.button_reply.id;
+    }
+
+    const input = interactiveId ?? text;
+    const inputLower = typeof input === "string" ? input.toLowerCase() : "";
+
+    console.log("📩 INPUT:", input);
+
+    if (!global.estadoCliente) global.estadoCliente = {};
+    const estado = global.estadoCliente;
+
+    const esAdmin = ADMINS.includes(from);
+
+    // =====================================================
+    // 🟪 TEXTO PARA SALDO (PRIORIDAD ALTA)
+    // =====================================================
+    if (estado[from] === "esperando_dato_saldo") {
+      const pedidos = await consultarSaldo(text);
+
+      if (!pedidos || pedidos.length === 0) {
+        const p = saldoNoEncontrado();
+        await sendMessage(from, p);
+        return res.sendStatus(200);
       }
-    });
+
+      if (pedidos.length === 1) {
+        const p = saldoUnPedido(pedidos[0]);
+        await sendMessage(from, p);
+      } else {
+        const p = seleccionarPedidoSaldo(pedidos);
+        await sendMessage(from, p);
+      }
+
+      delete estado[from];
+      return res.sendStatus(200);
+    }
+
+    // =====================================================
+    // 🟦 MENU GLOBAL
+    // =====================================================
+    if (inputLower === "menu" || inputLower === "menú") {
+      delete estado[from];
+      delete newOrderState[from];
+
+      const body = menuPrincipal();
+      await sendMessage(from, body);
+      return res.sendStatus(200);
+    }
+
+    // =====================================================
+    // 🟩 ADMIN: NUEVO PEDIDO
+    // =====================================================
+    if (esAdmin && inputLower === "/nuevo_pedido") {
+      await startNewOrderFlow(from);
+      return res.sendStatus(200);
+    }
+
+    // =====================================================
+    // 🟨 ADMIN: CONTINUAR FLUJO
+    // =====================================================
+    if (esAdmin && newOrderState[from]) {
+      await handleNewOrderStep(from, text);
+      return res.sendStatus(200);
+    }
+
+    // =====================================================
+    // 🟦 CLIENTE: OPCIONES DEL MENÚ
+    // =====================================================
+    if (!esAdmin) {
+
+      if (input === "COTIZAR") {
+        await sendMessage(from, {
+          text: { body: "🪑 Perfecto, cuéntanos qué mueble necesitas cotizar." }
+        });
+        return res.sendStatus(200);
+      }
+
+      if (input === "PEDIDO") {
+        const r = await consultarPedido(from);
+        await sendMessage(from, r);
+        return res.sendStatus(200);
+      }
+
+      if (input === "SALDO") {
+        estado[from] = "esperando_dato_saldo";
+        const p = pedirDatoSaldo();
+        await sendMessage(from, p);
+        return res.sendStatus(200);
+      }
+
+      if (input === "GARANTIA") {
+        await sendMessage(from, {
+          text: {
+            body: "🛡️ Todos nuestros muebles cuentan con garantía por defectos de fabricación."
+          }
+        });
+        return res.sendStatus(200);
+      }
+
+      if (input === "TIEMPOS") {
+        await sendMessage(from, {
+          text: {
+            body: "⏱️ Los tiempos de entrega dependen del proyecto. Escríbenos para más detalle."
+          }
+        });
+        return res.sendStatus(200);
+      }
+
+      if (input === "ASESOR") {
+        await sendMessage(from, {
+          text: {
+            body: "📞 Un asesor te contactará pronto."
+          }
+        });
+        return res.sendStatus(200);
+      }
+    }
 
     return res.sendStatus(200);
+
   } catch (err) {
-    console.error("❌ ERROR GLOBAL:", err);
+    console.error("❌ Error:", err);
     return res.sendStatus(500);
   }
 };
