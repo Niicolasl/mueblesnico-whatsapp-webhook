@@ -5,22 +5,19 @@ const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
 export const sendMessage = async (to, payload) => {
   try {
-    const finalPayload = {
+    console.log("📤 PAYLOAD ENVIADO A WHATSAPP:", JSON.stringify({
       messaging_product: "whatsapp",
       to,
-      ...(payload.type
-        ? payload
-        : {
-            type: "text",
-            text: payload.text
-          })
-    };
-
-    console.log("📤 WHATSAPP PAYLOAD:", JSON.stringify(finalPayload, null, 2));
+      ...payload
+    }, null, 2));
 
     await axios.post(
       `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
-      finalPayload,
+      {
+        messaging_product: "whatsapp",
+        to,
+        ...payload,
+      },
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -29,9 +26,6 @@ export const sendMessage = async (to, payload) => {
       }
     );
   } catch (error) {
-    console.error(
-      "❌ Error enviando mensaje:",
-      error.response?.data || error
-    );
+    console.error("❌ ERROR WHATSAPP:", error.response?.data || error);
   }
 };
