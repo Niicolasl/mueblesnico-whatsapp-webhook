@@ -3,7 +3,6 @@ import { consultarSaldo } from "../db/consultarSaldo.js";
 import { cancelarPedido } from "../db/cancelarPedido.js";
 import { registrarAnticipo } from "../db/anticipo.js";
 
-
 import {
   startNewOrderFlow,
   handleNewOrderStep,
@@ -25,8 +24,6 @@ const ADMINS = [
   "573125906313"
 ];
 
-
-
 export const handleMessage = async (req, res) => {
   try {
     const entry = req.body.entry?.[0];
@@ -36,6 +33,7 @@ export const handleMessage = async (req, res) => {
     if (!message) return res.sendStatus(200);
 
     const from = message.from;
+
     let text = message.text?.body?.trim() || "";
     let interactiveId = null;
 
@@ -56,6 +54,33 @@ export const handleMessage = async (req, res) => {
     const estado = global.estadoCliente;
 
     const esAdmin = ADMINS.includes(from);
+
+    // =====================================================
+    // 🟪 TEXTO PARA SALDO (PRIORIDAD ALTA)
+    // =====================================================
+    if (estado[from] === "esperando_dato_saldo") {
+      const pedidos = await consultarSaldo(text);
+
+      if (!pedidos || pedidos.length === 0) {
+        const p = saldoNoEncontrado();
+        p.to = from;
+        await sendMessage(from, p);
+        return res.sendStatus(200);
+      }
+
+      if (pedidos.length === 1) {
+        const p = saldoUnPedido(pedidos[0]);
+        p.to = from;
+        await sendMessage(from, p);
+      } else {
+        const p = seleccionarPedidoSaldo(pedidos);
+        p.to = from;
+        await sendMessage(from, p);
+      }
+
+      delete estado[from];
+      return res.sendStatus(200);
+    }
 
     // =====================================================
     // 🟦 MENU GLOBAL
@@ -94,6 +119,7 @@ export const handleMessage = async (req, res) => {
       if (input === "COTIZAR") {
         await sendMessage(from, {
           messaging_product: "whatsapp",
+          to: from,
           text: { body: "🪑 Perfecto, cuéntanos qué mueble necesitas cotizar." }
         });
         return res.sendStatus(200);
@@ -109,6 +135,7 @@ export const handleMessage = async (req, res) => {
       if (input === "SALDO") {
         estado[from] = "esperando_dato_saldo";
         const p = pedirDatoSaldo();
+        p.to = from;
         await sendMessage(from, p);
         return res.sendStatus(200);
       }
@@ -116,6 +143,7 @@ export const handleMessage = async (req, res) => {
       if (input === "GARANTIA") {
         await sendMessage(from, {
           messaging_product: "whatsapp",
+          to: from,
           text: {
             body: "🛡️ Todos nuestros muebles cuentan con garantía por defectos de fabricación."
           }
@@ -126,6 +154,7 @@ export const handleMessage = async (req, res) => {
       if (input === "TIEMPOS") {
         await sendMessage(from, {
           messaging_product: "whatsapp",
+          to: from,
           text: {
             body: "⏱️ Los tiempos de entrega dependen del proyecto. Escríbenos para más detalle."
           }
@@ -136,39 +165,13 @@ export const handleMessage = async (req, res) => {
       if (input === "ASESOR") {
         await sendMessage(from, {
           messaging_product: "whatsapp",
+          to: from,
           text: {
             body: "📞 Un asesor te contactará pronto."
           }
         });
         return res.sendStatus(200);
       }
-    }
-
-    // =====================================================
-    // 🟪 TEXTO PARA SALDO
-    // =====================================================
-    if (estado[from] === "esperando_dato_saldo") {
-      const pedidos = await consultarSaldo(text);
-
-      if (!pedidos || pedidos.length === 0) {
-        const p = saldoNoEncontrado();
-        p.to = from;
-        await sendMessage(from, p);
-        return res.sendStatus(200);
-      }
-
-      if (pedidos.length === 1) {
-        const p = saldoUnPedido(pedidos[0]);
-        p.to = from;
-        await sendMessage(from, p);
-      } else {
-        const p = seleccionarPedidoSaldo(pedidos);
-        p.to = from;
-        await sendMessage(from, p);
-      }
-
-      delete estado[from];
-      return res.sendStatus(200);
     }
 
     return res.sendStatus(200);
