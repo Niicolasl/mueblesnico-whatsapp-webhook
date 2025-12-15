@@ -1,5 +1,4 @@
 export const menuPrincipal = () => ({
-  type: "interactive",
   interactive: {
     type: "list",
     body: {
@@ -36,7 +35,6 @@ export const noTienePedidos = () => ({
 
 
 export const seleccionarPedido = (orders) => ({
-  type: "interactive",
   interactive: {
     type: "list",
     header: {
@@ -104,7 +102,6 @@ export const saldoUnPedido = (order) => ({
 
 // --- VARIOS PEDIDOS: LISTA PARA SELECCIONAR ---
 export const seleccionarPedidoSaldo = (orders) => ({
-  type: "interactive",
   interactive: {
     type: "list",
     header: {
@@ -144,7 +141,6 @@ export const solicitarAbono = (order) => ({
 
 export const listaPedidosTemplate = (pedidos) => {
   return {
-    type: "interactive",
     interactive: {
       type: "list",
       header: { type: "text", text: "📦 Tus Pedidos" },
@@ -168,7 +164,6 @@ export const listaPedidosTemplate = (pedidos) => {
 };
 
 export const infoPedidoUnico = (pedido) => ({
-  type: "text",
   text: {
     body:
       `📦 Detalles de tu pedido ${pedido.order_code}
