@@ -47,6 +47,7 @@ export const seleccionarPedido = (orders) => ({
       text: "Selecciona el pedido del que deseas obtener información:"
     },
     action: {
+      button: "Seleccionar pedido",
       sections: [
         {
           title: "Pedidos activos",
@@ -114,6 +115,7 @@ export const seleccionarPedidoSaldo = (orders) => ({
       text: "Selecciona el pedido del que deseas ver el saldo:"
     },
     action: {
+      button: "Ver pedidos",
       sections: [
         {
           title: "Pedidos activos",
@@ -127,6 +129,7 @@ export const seleccionarPedidoSaldo = (orders) => ({
     }
   }
 });
+
 
 // --- CONFIRMAR SI QUIERE ABONAR ---
 export const solicitarAbono = (order) => ({
