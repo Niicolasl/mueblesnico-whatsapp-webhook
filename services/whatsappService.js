@@ -63,18 +63,15 @@ export const handleMessage = async (req, res) => {
 
       if (!pedidos || pedidos.length === 0) {
         const p = saldoNoEncontrado();
-        p.to = from;
         await sendMessage(from, p);
         return res.sendStatus(200);
       }
 
       if (pedidos.length === 1) {
         const p = saldoUnPedido(pedidos[0]);
-        p.to = from;
         await sendMessage(from, p);
       } else {
         const p = seleccionarPedidoSaldo(pedidos);
-        p.to = from;
         await sendMessage(from, p);
       }
 
@@ -90,7 +87,6 @@ export const handleMessage = async (req, res) => {
       delete newOrderState[from];
 
       const body = menuPrincipal();
-      body.to = from;
       await sendMessage(from, body);
       return res.sendStatus(200);
     }
@@ -118,8 +114,6 @@ export const handleMessage = async (req, res) => {
 
       if (input === "COTIZAR") {
         await sendMessage(from, {
-          messaging_product: "whatsapp",
-          to: from,
           text: { body: "🪑 Perfecto, cuéntanos qué mueble necesitas cotizar." }
         });
         return res.sendStatus(200);
@@ -127,7 +121,6 @@ export const handleMessage = async (req, res) => {
 
       if (input === "PEDIDO") {
         const r = await consultarPedido(from);
-        r.to = from;
         await sendMessage(from, r);
         return res.sendStatus(200);
       }
@@ -135,15 +128,12 @@ export const handleMessage = async (req, res) => {
       if (input === "SALDO") {
         estado[from] = "esperando_dato_saldo";
         const p = pedirDatoSaldo();
-        p.to = from;
         await sendMessage(from, p);
         return res.sendStatus(200);
       }
 
       if (input === "GARANTIA") {
         await sendMessage(from, {
-          messaging_product: "whatsapp",
-          to: from,
           text: {
             body: "🛡️ Todos nuestros muebles cuentan con garantía por defectos de fabricación."
           }
@@ -153,8 +143,6 @@ export const handleMessage = async (req, res) => {
 
       if (input === "TIEMPOS") {
         await sendMessage(from, {
-          messaging_product: "whatsapp",
-          to: from,
           text: {
             body: "⏱️ Los tiempos de entrega dependen del proyecto. Escríbenos para más detalle."
           }
@@ -164,8 +152,6 @@ export const handleMessage = async (req, res) => {
 
       if (input === "ASESOR") {
         await sendMessage(from, {
-          messaging_product: "whatsapp",
-          to: from,
           text: {
             body: "📞 Un asesor te contactará pronto."
           }

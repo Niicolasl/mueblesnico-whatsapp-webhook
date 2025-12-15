@@ -1,5 +1,4 @@
 export const menuPrincipal = () => ({
-  messaging_product: "whatsapp",
   type: "interactive",
   interactive: {
     type: "list",
@@ -30,7 +29,6 @@ export const menuPrincipal = () => ({
 // --- PREGUNTAR POR MI PEDIDO ---
 
 export const noTienePedidos = () => ({
-  messaging_product: "whatsapp",
   text: {
     body: "🔎 No encontramos pedidos activos asociados a este número.\n\nSi deseas crear alguno, selecciona *📝 Cotizar* en el menú."
   }
@@ -38,7 +36,6 @@ export const noTienePedidos = () => ({
 
 
 export const seleccionarPedido = (orders) => ({
-  messaging_product: "whatsapp",
   type: "interactive",
   interactive: {
     type: "list",
@@ -66,7 +63,6 @@ export const seleccionarPedido = (orders) => ({
 
 // --- MENSAJE INICIAL DE CONSULTA DE SALDO ---
 export const pedirDatoSaldo = () => ({
-  messaging_product: "whatsapp",
   text: {
     body:
       "💰 *Consulta de saldo*\n\n" +
@@ -83,7 +79,6 @@ export const pedirDatoSaldo = () => ({
 
 // --- SIN PEDIDOS O NO ENCONTRADOS ---
 export const saldoNoEncontrado = () => ({
-  messaging_product: "whatsapp",
   text: {
     body:
       "❌ No encontramos pedidos activos con ese dato.\n\n" +
@@ -94,7 +89,6 @@ export const saldoNoEncontrado = () => ({
 
 // --- UN SOLO PEDIDO: MOSTRAR SALDO ---
 export const saldoUnPedido = (order) => ({
-  messaging_product: "whatsapp",
   text: {
     body:
       `💰 *Saldo de tu pedido ${order.codigo}*\n\n` +
@@ -109,7 +103,6 @@ export const saldoUnPedido = (order) => ({
 
 // --- VARIOS PEDIDOS: LISTA PARA SELECCIONAR ---
 export const seleccionarPedidoSaldo = (orders) => ({
-  messaging_product: "whatsapp",
   type: "interactive",
   interactive: {
     type: "list",
@@ -137,7 +130,6 @@ export const seleccionarPedidoSaldo = (orders) => ({
 
 // --- CONFIRMAR SI QUIERE ABONAR ---
 export const solicitarAbono = (order) => ({
-  messaging_product: "whatsapp",
   text: {
     body:
       `💵 *Abonar a tu pedido ${order.codigo}*\n\n` +
@@ -149,7 +141,6 @@ export const solicitarAbono = (order) => ({
 
 export const listaPedidosTemplate = (pedidos) => {
   return {
-    messaging_product: "whatsapp",
     type: "interactive",
     interactive: {
       type: "list",
@@ -174,7 +165,6 @@ export const listaPedidosTemplate = (pedidos) => {
 };
 
 export const infoPedidoUnico = (pedido) => ({
-  messaging_product: "whatsapp",
   type: "text",
   text: {
     body:
