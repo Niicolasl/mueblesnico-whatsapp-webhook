@@ -24,6 +24,19 @@ const ADMINS = [
   "573125906313"
 ];
 
+// 🔧 Helper: envía correctamente texto o interactive
+const enviar = async (to, payload) => {
+  if (payload?.type === "interactive") {
+    return sendMessage(to, {
+      type: "interactive",
+      interactive: payload.interactive
+    });
+  }
+
+  // texto normal
+  return sendMessage(to, payload);
+};
+
 export const handleMessage = async (req, res) => {
   try {
     const entry = req.body.entry?.[0];
@@ -62,17 +75,14 @@ export const handleMessage = async (req, res) => {
       const pedidos = await consultarSaldo(text);
 
       if (!pedidos || pedidos.length === 0) {
-        const p = saldoNoEncontrado();
-        await sendMessage(from, p);
+        await enviar(from, saldoNoEncontrado());
         return res.sendStatus(200);
       }
 
       if (pedidos.length === 1) {
-        const p = saldoUnPedido(pedidos[0]);
-        await sendMessage(from, p);
+        await enviar(from, saldoUnPedido(pedidos[0]));
       } else {
-        const p = seleccionarPedidoSaldo(pedidos);
-        await sendMessage(from, p);
+        await enviar(from, seleccionarPedidoSaldo(pedidos));
       }
 
       delete estado[from];
@@ -86,8 +96,7 @@ export const handleMessage = async (req, res) => {
       delete estado[from];
       delete newOrderState[from];
 
-      const body = menuPrincipal();
-      await sendMessage(from, body);
+      await enviar(from, menuPrincipal());
       return res.sendStatus(200);
     }
 
@@ -113,7 +122,7 @@ export const handleMessage = async (req, res) => {
     if (!esAdmin) {
 
       if (input === "COTIZAR") {
-        await sendMessage(from, {
+        await enviar(from, {
           text: { body: "🪑 Perfecto, cuéntanos qué mueble necesitas cotizar." }
         });
         return res.sendStatus(200);
@@ -121,19 +130,18 @@ export const handleMessage = async (req, res) => {
 
       if (input === "PEDIDO") {
         const r = await consultarPedido(from);
-        await sendMessage(from, r);
+        await enviar(from, r);
         return res.sendStatus(200);
       }
 
       if (input === "SALDO") {
         estado[from] = "esperando_dato_saldo";
-        const p = pedirDatoSaldo();
-        await sendMessage(from, p);
+        await enviar(from, pedirDatoSaldo());
         return res.sendStatus(200);
       }
 
       if (input === "GARANTIA") {
-        await sendMessage(from, {
+        await enviar(from, {
           text: {
             body: "🛡️ Todos nuestros muebles cuentan con garantía por defectos de fabricación."
           }
@@ -142,7 +150,7 @@ export const handleMessage = async (req, res) => {
       }
 
       if (input === "TIEMPOS") {
-        await sendMessage(from, {
+        await enviar(from, {
           text: {
             body: "⏱️ Los tiempos de entrega dependen del proyecto. Escríbenos para más detalle."
           }
@@ -151,7 +159,7 @@ export const handleMessage = async (req, res) => {
       }
 
       if (input === "ASESOR") {
-        await sendMessage(from, {
+        await enviar(from, {
           text: {
             body: "📞 Un asesor te contactará pronto."
           }
