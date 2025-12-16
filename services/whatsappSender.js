@@ -5,19 +5,24 @@ const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
 export const sendMessage = async (to, payload) => {
   try {
-    console.log("📤 PAYLOAD ENVIADO A WHATSAPP:", JSON.stringify({
+    const body = {
       messaging_product: "whatsapp",
       to,
-      ...payload
-    }, null, 2));
+    };
+
+    if (payload.type === "interactive") {
+      body.type = "interactive";
+      body.interactive = payload.interactive;
+    } else {
+      body.type = "text";
+      body.text = payload.text;
+    }
+
+    console.log("📤 PAYLOAD ENVIADO A WHATSAPP:", JSON.stringify(body, null, 2));
 
     await axios.post(
       `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
-      {
-        messaging_product: "whatsapp",
-        to,
-        ...payload,
-      },
+      body,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -26,6 +31,9 @@ export const sendMessage = async (to, payload) => {
       }
     );
   } catch (error) {
-    console.error("❌ ERROR WHATSAPP:", error.response?.data || error);
+    console.error(
+      "❌ ERROR WHATSAPP:",
+      error.response?.data || error.message
+    );
   }
 };
