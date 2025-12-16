@@ -1,4 +1,5 @@
 import { pool } from "./init.js";
+import { normalizarTelefono } from "../utils/phone.js";
 
 // --- CONSULTAR SALDO PENDIENTE ---
 export const consultarSaldo = async (input) => {
@@ -6,30 +7,47 @@ export const consultarSaldo = async (input) => {
         let query = "";
         let values = [];
 
-        // 1️⃣ Si viene como ID numérico
-        if (/^\d+$/.test(input)) {
-            query = "SELECT * FROM orders WHERE id = $1 AND cancelado = false";
-            values = [Number(input)];
+        const limpio = input.toString().trim();
+
+        // 1️⃣ ID numérico (id del pedido)
+        if (/^\d+$/.test(limpio) && limpio.length <= 6) {
+            query = `
+        SELECT id, order_code, descripcion_trabajo, valor_total, valor_abonado
+        FROM orders
+        WHERE id = $1 AND cancelado = false
+      `;
+            values = [Number(limpio)];
         }
 
-        // 2️⃣ Si viene con código MN-123
-        else if (/^MN-\d+$/i.test(input)) {
-            query = "SELECT * FROM orders WHERE codigo = $1 AND cancelado = false";
-            values = [input.toUpperCase()];
+        // 2️⃣ Código de pedido MN-AAAA-XXXX
+        else if (/^MN-\d{4}-\d{4}$/i.test(limpio)) {
+            query = `
+        SELECT id, order_code, descripcion_trabajo, valor_total, valor_abonado
+        FROM orders
+        WHERE order_code = $1 AND cancelado = false
+      `;
+            values = [limpio.toUpperCase()];
         }
 
-        // 3️⃣ Si viene como número de WhatsApp 57320...
-        else if (/^\d{11,15}$/.test(input)) {
-            const number = "+" + input;
-            query = "SELECT * FROM orders WHERE numero_whatsapp = $1 AND cancelado = false";
-            values = [number];
+        // 3️⃣ Número de WhatsApp (normalizado SIN 57)
+        else if (/^\d{7,10}$/.test(limpio)) {
+            const telefono = normalizarTelefono(limpio);
+
+            query = `
+        SELECT id, order_code, descripcion_trabajo, valor_total, valor_abonado
+        FROM orders
+        WHERE numero_whatsapp = $1 AND cancelado = false
+        ORDER BY id DESC
+      `;
+            values = [telefono];
         }
 
-        // ❌ Si no coincide con ninguna forma válida
+        // ❌ Formato inválido
         else {
             return {
                 error: true,
-                message: "El formato ingresado no es válido. Usa un número de pedido, ID o tu número de WhatsApp."
+                message:
+                    "Formato no válido. Usa el ID, el código del pedido (MN-AAAA-XXXX) o tu número de WhatsApp."
             };
         }
 
@@ -38,22 +56,19 @@ export const consultarSaldo = async (input) => {
         if (rows.length === 0) {
             return {
                 error: true,
-                message: "No encontré pedidos activos con ese dato."
+                message: "No encontramos pedidos activos con ese dato."
             };
         }
 
-        // Si existe uno o varios → devolver lista con saldo
-        const response = rows.map(order => ({
+        // ✅ Respuesta limpia
+        return rows.map((order) => ({
             id: order.id,
-            codigo: order.codigo,
-            descripcion: order.descripcion,
-            total: order.total,
-            anticipo: order.anticipo,
-            saldo: Number(order.total) - Number(order.anticipo)
+            codigo: order.order_code,
+            descripcion: order.descripcion_trabajo,
+            total: Number(order.valor_total),
+            anticipo: Number(order.valor_abonado || 0),
+            saldo: Number(order.valor_total) - Number(order.valor_abonado || 0)
         }));
-
-        return response;
-
     } catch (error) {
         console.error("❌ Error consultando saldo:", error);
         return {

@@ -1,5 +1,6 @@
 import { consultarPedido } from "./orderService.js";
 import { consultarSaldo } from "../db/consultarSaldo.js";
+import { normalizarTelefono } from "../utils/phone.js";
 import { cancelarPedido } from "../db/cancelarPedido.js";
 import { registrarAnticipo } from "../db/anticipo.js";
 
@@ -48,10 +49,10 @@ export const handleMessage = async (req, res) => {
     const entry = req.body.entry?.[0];
     const changes = entry?.changes?.[0];
     const message = changes?.value?.messages?.[0];
+    const from = normalizarTelefono(message.from);
+
 
     if (!message) return res.sendStatus(200);
-
-    const from = message.from;
 
     let text = message.text?.body?.trim() || "";
     let interactiveId = null;
