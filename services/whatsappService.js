@@ -119,59 +119,54 @@ export const handleMessage = async (req, res) => {
     // =====================================================
     // 🟦 CLIENTE: OPCIONES DEL MENÚ
     // =====================================================
-    if (!esAdmin) {
-
-      if (input === "COTIZAR") {
-        await enviar(from, {
-          text: { body: "🪑 Perfecto, cuéntanos qué mueble necesitas cotizar." }
-        });
-        return res.sendStatus(200);
-      }
-
-      if (input === "PEDIDO") {
-        const r = await consultarPedido(from);
-        await enviar(from, r);
-        return res.sendStatus(200);
-      }
-
-      if (input === "SALDO") {
-        estado[from] = "esperando_dato_saldo";
-        await enviar(from, pedirDatoSaldo());
-        return res.sendStatus(200);
-      }
-
-      if (input === "GARANTIA") {
-        await enviar(from, {
-          text: {
-            body: "🛡️ Todos nuestros muebles cuentan con garantía por defectos de fabricación."
-          }
-        });
-        return res.sendStatus(200);
-      }
-
-      if (input === "TIEMPOS") {
-        await enviar(from, {
-          text: {
-            body: "⏱️ Los tiempos de entrega dependen del proyecto. Escríbenos para más detalle."
-          }
-        });
-        return res.sendStatus(200);
-      }
-
-      if (input === "ASESOR") {
-        await enviar(from, {
-          text: {
-            body: "📞 Un asesor te contactará pronto."
-          }
-        });
-        return res.sendStatus(200);
-      }
+    if (input === "COTIZAR") {
+      await enviar(from, {
+        text: { body: "🪑 Perfecto, cuéntanos qué mueble necesitas cotizar." }
+      });
+      return res.sendStatus(200);
     }
 
-    return res.sendStatus(200);
+    if (input === "PEDIDO") {
+      const r = await consultarPedido(from);
+      await enviar(from, r);
+      return res.sendStatus(200);
+    }
 
+    if (input === "SALDO") {
+      estado[from] = "esperando_dato_saldo";
+      await enviar(from, pedirDatoSaldo());
+      return res.sendStatus(200);
+    }
+
+    if (input === "GARANTIA") {
+      await enviar(from, {
+        text: {
+          body: "🛡️ Todos nuestros muebles cuentan con garantía por defectos de fabricación."
+        }
+      });
+      return res.sendStatus(200);
+    }
+
+    if (input === "TIEMPOS") {
+      await enviar(from, {
+        text: {
+          body: "⏱️ Los tiempos de entrega dependen del proyecto. Escríbenos para más detalle."
+        }
+      });
+      return res.sendStatus(200);
+    }
+
+    if (input === "ASESOR") {
+      await enviar(from, {
+        text: {
+          body: "📞 Un asesor te contactará pronto."
+        }
+      });
+      return res.sendStatus(200);
+    }
   } catch (err) {
     console.error("❌ Error:", err);
     return res.sendStatus(500);
   }
 };
+
