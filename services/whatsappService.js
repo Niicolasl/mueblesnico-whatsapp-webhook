@@ -24,17 +24,23 @@ const ADMINS = [
   "573125906313"
 ];
 
-// 🔧 Helper: envía correctamente texto o interactive
+// 🔧 Helper seguro para enviar mensajes
 const enviar = async (to, payload) => {
-  if (payload?.type === "interactive") {
+  if (!payload) return;
+
+  // interactive
+  if (payload.interactive) {
     return sendMessage(to, {
       type: "interactive",
-      interactive: payload.interactive
+      interactive: payload.interactive,
     });
   }
 
-  // texto normal
-  return sendMessage(to, payload);
+  // text
+  return sendMessage(to, {
+    type: "text",
+    text: payload.text,
+  });
 };
 
 export const handleMessage = async (req, res) => {
@@ -59,7 +65,8 @@ export const handleMessage = async (req, res) => {
     }
 
     const input = interactiveId ?? text;
-    const inputLower = typeof input === "string" ? input.toLowerCase() : "";
+    const inputLower =
+      typeof input === "string" ? input.toLowerCase() : "";
 
     console.log("📩 INPUT:", input);
 
@@ -69,12 +76,25 @@ export const handleMessage = async (req, res) => {
     const esAdmin = ADMINS.includes(from);
 
     // =====================================================
-    // 🟪 TEXTO PARA SALDO (PRIORIDAD ALTA)
+    // 🟥 MENU GLOBAL — PRIORIDAD ABSOLUTA
+    // =====================================================
+    if (inputLower === "menu" || inputLower === "menú") {
+      delete estado[from];
+      delete newOrderState[from];
+
+      await enviar(from, menuPrincipal());
+      return res.sendStatus(200);
+    }
+
+    // =====================================================
+    // 🟪 SALDO — ESTADO ESPERANDO DATO
     // =====================================================
     if (estado[from] === "esperando_dato_saldo") {
       const pedidos = await consultarSaldo(text);
 
-      if (!pedidos || pedidos.length === 0) {
+      // 🔒 Blindaje total
+      if (!Array.isArray(pedidos) || pedidos.length === 0) {
+        delete estado[from];
         await enviar(from, saldoNoEncontrado());
         return res.sendStatus(200);
       }
@@ -86,17 +106,6 @@ export const handleMessage = async (req, res) => {
       }
 
       delete estado[from];
-      return res.sendStatus(200);
-    }
-
-    // =====================================================
-    // 🟦 MENU GLOBAL
-    // =====================================================
-    if (inputLower === "menu" || inputLower === "menú") {
-      delete estado[from];
-      delete newOrderState[from];
-
-      await enviar(from, menuPrincipal());
       return res.sendStatus(200);
     }
 
@@ -121,7 +130,7 @@ export const handleMessage = async (req, res) => {
     // =====================================================
     if (input === "COTIZAR") {
       await enviar(from, {
-        text: { body: "🪑 Perfecto, cuéntanos qué mueble necesitas cotizar." }
+        text: { body: "🪑 Perfecto, cuéntanos qué mueble necesitas cotizar." },
       });
       return res.sendStatus(200);
     }
@@ -141,8 +150,9 @@ export const handleMessage = async (req, res) => {
     if (input === "GARANTIA") {
       await enviar(from, {
         text: {
-          body: "🛡️ Todos nuestros muebles cuentan con garantía por defectos de fabricación."
-        }
+          body:
+            "🛡️ Todos nuestros muebles cuentan con garantía por defectos de fabricación.",
+        },
       });
       return res.sendStatus(200);
     }
@@ -150,8 +160,9 @@ export const handleMessage = async (req, res) => {
     if (input === "TIEMPOS") {
       await enviar(from, {
         text: {
-          body: "⏱️ Los tiempos de entrega dependen del proyecto. Escríbenos para más detalle."
-        }
+          body:
+            "⏱️ Los tiempos de entrega dependen del proyecto. Escríbenos para más detalle.",
+        },
       });
       return res.sendStatus(200);
     }
@@ -159,14 +170,16 @@ export const handleMessage = async (req, res) => {
     if (input === "ASESOR") {
       await enviar(from, {
         text: {
-          body: "📞 Un asesor te contactará pronto."
-        }
+          body: "📞 Un asesor te contactará pronto.",
+        },
       });
       return res.sendStatus(200);
     }
+
+    return res.sendStatus(200);
+
   } catch (err) {
     console.error("❌ Error:", err);
     return res.sendStatus(500);
   }
 };
-
