@@ -1,47 +1,43 @@
-import { consultarPedido } from "./orderService.js";
-import { consultarSaldo } from "../db/consultarSaldo.js";
-import { normalizarTelefono } from "../utils/phone.js";
-import { cancelarPedido } from "../db/cancelarPedido.js";
-import { registrarAnticipo } from "../db/anticipo.js";
-
 import {
   startNewOrderFlow,
   handleNewOrderStep,
   newOrderState
 } from "../flows/newOrderFlow.js";
 
+import { consultarPedido } from "./orderService.js";
+import { consultarSaldo } from "../db/consultarSaldo.js";
+
 import {
   pedirDatoSaldo,
   saldoNoEncontrado,
   saldoUnPedido,
   seleccionarPedidoSaldo,
-  menuPrincipal,
+  menuPrincipal
 } from "../utils/messageTemplates.js";
 
 import { sendMessage } from "./whatsappSender.js";
+import {
+  normalizarTelefono,
+  telefonoParaWhatsApp
+} from "../utils/phone.js";
 
 const ADMINS = [
-  "573204128555",
-  "573125906313"
+  "3204128555",
+  "3125906313"
 ];
 
-// 🔧 Helper seguro para enviar mensajes
+// 🔧 Helper envío
 const enviar = async (to, payload) => {
-  if (!payload) return;
+  const toWhatsapp = telefonoParaWhatsApp(to);
 
-  // interactive
-  if (payload.interactive) {
-    return sendMessage(to, {
+  if (payload?.type === "interactive") {
+    return sendMessage(toWhatsapp, {
       type: "interactive",
-      interactive: payload.interactive,
+      interactive: payload.interactive
     });
   }
 
-  // text
-  return sendMessage(to, {
-    type: "text",
-    text: payload.text,
-  });
+  return sendMessage(toWhatsapp, payload);
 };
 
 export const handleMessage = async (req, res) => {
@@ -49,10 +45,11 @@ export const handleMessage = async (req, res) => {
     const entry = req.body.entry?.[0];
     const changes = entry?.changes?.[0];
     const message = changes?.value?.messages?.[0];
-    const from = normalizarTelefono(message.from);
-
 
     if (!message) return res.sendStatus(200);
+
+    // 📞 Número entrante normalizado (SIN 57)
+    const from = normalizarTelefono(message.from);
 
     let text = message.text?.body?.trim() || "";
     let interactiveId = null;
@@ -60,16 +57,14 @@ export const handleMessage = async (req, res) => {
     if (message.interactive?.list_reply) {
       interactiveId = message.interactive.list_reply.id;
     }
-
     if (message.interactive?.button_reply) {
       interactiveId = message.interactive.button_reply.id;
     }
 
     const input = interactiveId ?? text;
-    const inputLower =
-      typeof input === "string" ? input.toLowerCase() : "";
+    const inputLower = typeof input === "string" ? input.toLowerCase() : "";
 
-    console.log("📩 INPUT:", input);
+    console.log("📩 INPUT:", input, "FROM:", from);
 
     if (!global.estadoCliente) global.estadoCliente = {};
     const estado = global.estadoCliente;
@@ -77,36 +72,41 @@ export const handleMessage = async (req, res) => {
     const esAdmin = ADMINS.includes(from);
 
     // =====================================================
-    // 🟥 MENU GLOBAL — PRIORIDAD ABSOLUTA
+    // 🟪 SALDO (esperando dato)
     // =====================================================
-    if (inputLower === "menu" || inputLower === "menú") {
-      delete estado[from];
-      delete newOrderState[from];
+    if (estado[from] === "esperando_dato_saldo") {
 
-      await enviar(from, menuPrincipal());
+      // 👇 normalizamos SOLO si parece teléfono
+      let dato = text;
+      if (/^\+?\d{10,15}$/.test(text)) {
+        dato = normalizarTelefono(text);
+      }
+
+      const resultado = await consultarSaldo(dato);
+
+      if (resultado?.error || !Array.isArray(resultado)) {
+        await enviar(from, saldoNoEncontrado());
+        delete estado[from];
+        return res.sendStatus(200);
+      }
+
+      if (resultado.length === 1) {
+        await enviar(from, saldoUnPedido(resultado[0]));
+      } else {
+        await enviar(from, seleccionarPedidoSaldo(resultado));
+      }
+
+      delete estado[from];
       return res.sendStatus(200);
     }
 
     // =====================================================
-    // 🟪 SALDO — ESTADO ESPERANDO DATO
+    // 🟦 MENU
     // =====================================================
-    if (estado[from] === "esperando_dato_saldo") {
-      const pedidos = await consultarSaldo(text);
-
-      // 🔒 Blindaje total
-      if (!Array.isArray(pedidos) || pedidos.length === 0) {
-        delete estado[from];
-        await enviar(from, saldoNoEncontrado());
-        return res.sendStatus(200);
-      }
-
-      if (pedidos.length === 1) {
-        await enviar(from, saldoUnPedido(pedidos[0]));
-      } else {
-        await enviar(from, seleccionarPedidoSaldo(pedidos));
-      }
-
+    if (inputLower === "menu" || inputLower === "menú") {
       delete estado[from];
+      delete newOrderState[from];
+      await enviar(from, menuPrincipal());
       return res.sendStatus(200);
     }
 
@@ -127,11 +127,11 @@ export const handleMessage = async (req, res) => {
     }
 
     // =====================================================
-    // 🟦 CLIENTE: OPCIONES DEL MENÚ
+    // 🟦 CLIENTE: OPCIONES MENÚ
     // =====================================================
     if (input === "COTIZAR") {
       await enviar(from, {
-        text: { body: "🪑 Perfecto, cuéntanos qué mueble necesitas cotizar." },
+        text: { body: "🪑 Perfecto, cuéntanos qué mueble necesitas cotizar." }
       });
       return res.sendStatus(200);
     }
@@ -151,9 +151,8 @@ export const handleMessage = async (req, res) => {
     if (input === "GARANTIA") {
       await enviar(from, {
         text: {
-          body:
-            "🛡️ Todos nuestros muebles cuentan con garantía por defectos de fabricación.",
-        },
+          body: "🛡️ Todos nuestros muebles cuentan con garantía por defectos de fabricación."
+        }
       });
       return res.sendStatus(200);
     }
@@ -161,18 +160,15 @@ export const handleMessage = async (req, res) => {
     if (input === "TIEMPOS") {
       await enviar(from, {
         text: {
-          body:
-            "⏱️ Los tiempos de entrega dependen del proyecto. Escríbenos para más detalle.",
-        },
+          body: "⏱️ Los tiempos de entrega dependen del proyecto. Escríbenos para más detalle."
+        }
       });
       return res.sendStatus(200);
     }
 
     if (input === "ASESOR") {
       await enviar(from, {
-        text: {
-          body: "📞 Un asesor te contactará pronto.",
-        },
+        text: { body: "📞 Un asesor te contactará pronto." }
       });
       return res.sendStatus(200);
     }
