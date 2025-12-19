@@ -198,3 +198,15 @@ ${pedido.fecha_aprox_entrega ? `• Entrega estimada: ${pedido.fecha_aprox_entre
   }
 });
 
+export const infoMediosPago = () => ({
+  text: {
+    body:
+      "💵 *Medios de pago disponibles*\n\n" +
+      "• Nequi: 3125906313\n" +
+      "• Daviplata: 3125906313\n" +
+      "• Bancolombia:941-000017-43 cuenta ahorros\n" +
+      " Daniel Perez Rodriguez\n" +
+      " CC 79977638\n\n"+
+      "📸 Cuando realices el pago, envía el comprobante y un asesor lo registrará."
+  }
+});

@@ -6,7 +6,8 @@ import {
 
 import { consultarPedido } from "./orderService.js";
 import { consultarSaldo } from "../db/consultarSaldo.js";
-import { getOrder } from "../db/orders.js";
+import { infoMediosPago } from "../utils/messageTemplates.js";
+
 
 
 import {
@@ -133,33 +134,39 @@ export const handleMessage = async (req, res) => {
     // 🟩 ADMIN: ANTICIPO
     // =====================================================
 
-    if (inputLower === "/anticipo") {
+    if (esAdmin && inputLower === "/anticipo") {
       adminState[from] = { step: "anticipo_codigo" };
 
       await enviar(from, {
-        text: "📌 Ingresa el *código del pedido* (ej: MN-2025-0004)"
+        text: {
+          body: "📌 Ingresa el *código del pedido* (ej: MN-2025-0004)"
+        }
       });
 
       return res.sendStatus(200);
     }
 
-    if (adminState[from]?.step === "anticipo_codigo") {
+    if (esAdmin && adminState[from]?.step === "anticipo_codigo") {
       adminState[from].orderCode = input.toUpperCase();
       adminState[from].step = "anticipo_valor";
 
       await enviar(from, {
-        text: "💵 Ingresa el *valor abonado*"
+        text: {
+          body: "💵 Ingresa el *valor abonado*"
+        }
       });
 
       return res.sendStatus(200);
     }
 
-    if (adminState[from]?.step === "anticipo_valor") {
+    if (esAdmin && adminState[from]?.step === "anticipo_valor") {
       const valor = Number(input.replace(/[^\d]/g, ""));
 
       if (!valor || valor <= 0) {
         await enviar(from, {
-          text: "❌ Valor inválido. Ingresa solo números."
+          text: {
+            body: "❌ Valor inválido. Ingresa solo números."
+          }
         });
         return res.sendStatus(200);
       }
@@ -173,36 +180,43 @@ export const handleMessage = async (req, res) => {
 
       if (!result) {
         await enviar(from, {
-          text: "❌ No se pudo registrar el anticipo. Verifica el código."
+          text: {
+            body: "❌ No se pudo registrar el anticipo. Verifica el código."
+          }
         });
         return res.sendStatus(200);
       }
 
       // ✅ Mensaje al ADMIN
       await enviar(from, {
-        text:
-          `✅ *Anticipo registrado*\n\n` +
-          `Pedido: ${result.order_code}\n` +
-          `Abonado total: $${Number(result.valor_abonado).toLocaleString()}\n` +
-          `Saldo pendiente: $${Number(result.saldo_pendiente).toLocaleString()}`
+        text: {
+          body:
+            `✅ *Anticipo registrado*\n\n` +
+            `Pedido: ${result.order_code}\n` +
+            `Abonado total: $${Number(result.valor_abonado).toLocaleString()}\n` +
+            `Saldo pendiente: $${Number(result.saldo_pendiente).toLocaleString()}`
+        }
       });
 
       // ✅ Mensaje al CLIENTE
       let mensajeCliente =
         `💳 *Hemos recibido tu abono*\n\n` +
         `Pedido: ${result.order_code}\n` +
-        `Abonado: $${valor.toLocaleString()}\n` +
-        `Saldo pendiente: $${Number(result.saldo_pendiente).toLocaleString()}`;
+        `Abono recibido: $${valor.toLocaleString()}\n` +
+        `Saldo pendiente: $${Number(result.saldo_pendiente).toLocaleString()}\n\n` +
+        `Gracias por tu pago 🙌`;
 
       if (Number(result.saldo_pendiente) <= 0) {
         mensajeCliente =
           `🎉 *¡Pago completado!*\n\n` +
           `Tu pedido *${result.order_code}* ya se encuentra completamente pagado.\n` +
-          `En breve te contactaremos para continuar con el proceso.`;
+          `¡Gracias por confiar en Muebles Nico!`;
       }
 
       await enviar(result.numero_whatsapp, {
-        text: mensajeCliente
+        text: {
+          body: mensajeCliente
+        }
       });
 
       return res.sendStatus(200);
