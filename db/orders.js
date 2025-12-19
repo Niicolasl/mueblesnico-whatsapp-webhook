@@ -2,50 +2,47 @@ import { pool } from "./init.js";
 import { normalizarTelefono } from "../utils/phone.js";
 
 /************************************************
- *  GENERAR CÓDIGO DE PEDIDO (MN-AAAA-XXXX)
+ * GENERAR CÓDIGO DE PEDIDO (MN-AAAA-XXXX)
  ************************************************/
 export async function generateOrderCode() {
-    const currentYear = new Date().getFullYear();
+    const year = new Date().getFullYear();
 
-    const seqResult = await pool.query(
+    const { rows } = await pool.query(
         "SELECT last_number FROM order_sequence WHERE year = $1",
-        [currentYear]
+        [year]
     );
 
-    let nextNumber = 1;
+    let next = 1;
 
-    if (seqResult.rows.length === 0) {
+    if (rows.length === 0) {
         await pool.query(
-            "INSERT INTO order_sequence (year, last_number) VALUES ($1, $2)",
-            [currentYear, 1]
+            "INSERT INTO order_sequence (year, last_number) VALUES ($1,$2)",
+            [year, 1]
         );
     } else {
-        nextNumber = seqResult.rows[0].last_number + 1;
+        next = rows[0].last_number + 1;
         await pool.query(
             "UPDATE order_sequence SET last_number = $1 WHERE year = $2",
-            [nextNumber, currentYear]
+            [next, year]
         );
     }
 
-    const numberFormatted = String(nextNumber).padStart(4, "0");
-    return `MN-${currentYear}-${numberFormatted}`;
+    return `MN-${year}-${String(next).padStart(4, "0")}`;
 }
 
 /************************************************
- *  CREAR PEDIDO
+ * CREAR PEDIDO
  ************************************************/
 export async function createOrder({
     nombre_cliente,
     numero_whatsapp,
     descripcion_trabajo,
-    valor_total
+    valor_total,
 }) {
     const order_code = await generateOrderCode();
-    const fecha_creacion = new Date();
-
     const telefono = normalizarTelefono(numero_whatsapp);
 
-    const result = await pool.query(
+    const { rows } = await pool.query(
         `
     INSERT INTO orders (
       order_code,
@@ -59,7 +56,7 @@ export async function createOrder({
       estado_pedido,
       cancelado
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'nuevo',false)
+    VALUES ($1,$2,$3,$4,CURRENT_DATE,$5,0,$5,'pendiente de anticipo',false)
     RETURNING *;
     `,
         [
@@ -67,75 +64,95 @@ export async function createOrder({
             nombre_cliente,
             telefono,
             descripcion_trabajo,
-            fecha_creacion,
             valor_total,
-            0,
-            valor_total
         ]
     );
 
-    return result.rows[0];
+    return rows[0];
 }
 
 /************************************************
- *  AGREGAR ANTICIPO
+ * REGISTRAR ANTICIPO (ÚNICA FUNCIÓN)
  ************************************************/
-export async function addAnticipo(order_code, valor_abonado) {
-    const result = await pool.query(
+export async function registrarAnticipo(order_code, valor) {
+    const { rows } = await pool.query(
+        `
+    SELECT * FROM orders
+    WHERE order_code = $1 AND cancelado = false
+    `,
+        [order_code]
+    );
+
+    if (rows.length === 0) return null;
+
+    const order = rows[0];
+    const abono = Number(valor);
+
+    if (abono <= 0) return "valor_invalido";
+
+    const nuevoAbonado = Number(order.valor_abonado) + abono;
+    const nuevoSaldo = Number(order.valor_total) - nuevoAbonado;
+
+    if (nuevoSaldo < 0) return "excede_total";
+
+    const fechaEntrega = order.fecha_aprox_entrega
+        ? order.fecha_aprox_entrega
+        : new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+
+    const update = await pool.query(
         `
     UPDATE orders
     SET
-      valor_abonado = valor_abonado + $1,
-      saldo_pendiente = saldo_pendiente - $1,
-      fecha_aprox_entrega = COALESCE(
-        fecha_aprox_entrega,
-        CURRENT_DATE + INTERVAL '15 days'
-      ),
-      estado_pedido = 'pendiente'
-    WHERE order_code = $2 AND cancelado = false
+      valor_abonado = $1,
+      saldo_pendiente = $2,
+      fecha_aprox_entrega = $3,
+      estado_pedido = 'pendiente de inicio'
+    WHERE order_code = $4
     RETURNING *;
     `,
-        [valor_abonado, order_code]
+        [
+            nuevoAbonado,
+            nuevoSaldo,
+            fechaEntrega,
+            order_code,
+        ]
     );
 
-    return result.rows.length ? result.rows[0] : null;
+    return update.rows[0];
 }
 
 /************************************************
- *  CANCELAR PEDIDO
+ * CANCELAR PEDIDO (ÚNICA FUNCIÓN)
  ************************************************/
-export async function cancelOrder(order_code) {
-    const result = await pool.query(
+export async function cancelarPedido(order_code) {
+    const { rowCount, rows } = await pool.query(
         `
     UPDATE orders
     SET
       cancelado = true,
-      fecha_cancelacion = CURRENT_DATE,
-      estado_pedido = 'cancelado'
-    WHERE order_code = $1
+      estado_pedido = 'cancelado',
+      fecha_cancelacion = CURRENT_DATE
+    WHERE order_code = $1 AND cancelado = false
     RETURNING *;
     `,
         [order_code]
     );
 
-    return result.rows.length ? result.rows[0] : null;
+    if (rowCount === 0) return null;
+    return rows[0];
 }
 
 /************************************************
- *  BUSCAR PEDIDO POR CÓDIGO
+ * CONSULTAS
  ************************************************/
 export async function getOrder(order_code) {
-    const result = await pool.query(
+    const { rows } = await pool.query(
         "SELECT * FROM orders WHERE order_code = $1",
         [order_code]
     );
-
-    return result.rows.length ? result.rows[0] : null;
+    return rows[0] || null;
 }
 
-/************************************************
- *  BUSCAR PEDIDOS POR TELÉFONO
- ************************************************/
 export async function getPedidosByPhone(telefono) {
     const clean = normalizarTelefono(telefono);
 
@@ -143,7 +160,7 @@ export async function getPedidosByPhone(telefono) {
         `
     SELECT *
     FROM orders
-    WHERE numero_whatsapp = $1
+    WHERE numero_whatsapp = $1 AND cancelado = false
     ORDER BY id DESC
     `,
         [clean]

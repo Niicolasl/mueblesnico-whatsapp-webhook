@@ -6,6 +6,8 @@ import {
 
 import { consultarPedido } from "./orderService.js";
 import { consultarSaldo } from "../db/consultarSaldo.js";
+import { getOrder } from "../db/orders.js";
+
 
 import {
   pedirDatoSaldo,
@@ -25,6 +27,7 @@ const ADMINS = [
   "3204128555",
   "3125906313"
 ];
+const adminState = {};
 
 // 🔧 Helper envío
 const enviar = async (to, payload) => {
@@ -113,7 +116,7 @@ export const handleMessage = async (req, res) => {
     // =====================================================
     // 🟩 ADMIN: NUEVO PEDIDO
     // =====================================================
-    if (esAdmin && inputLower === "/nuevo_pedido") {
+    if (esAdmin && inputLower === "/nuevop") {
       await startNewOrderFlow(from);
       return res.sendStatus(200);
     }
@@ -125,6 +128,87 @@ export const handleMessage = async (req, res) => {
       await handleNewOrderStep(from, text);
       return res.sendStatus(200);
     }
+
+    // =====================================================
+    // 🟩 ADMIN: ANTICIPO
+    // =====================================================
+
+    if (inputLower === "/anticipo") {
+      adminState[from] = { step: "anticipo_codigo" };
+
+      await enviar(from, {
+        text: "📌 Ingresa el *código del pedido* (ej: MN-2025-0004)"
+      });
+
+      return res.sendStatus(200);
+    }
+
+    if (adminState[from]?.step === "anticipo_codigo") {
+      adminState[from].orderCode = input.toUpperCase();
+      adminState[from].step = "anticipo_valor";
+
+      await enviar(from, {
+        text: "💵 Ingresa el *valor abonado*"
+      });
+
+      return res.sendStatus(200);
+    }
+
+    if (adminState[from]?.step === "anticipo_valor") {
+      const valor = Number(input.replace(/[^\d]/g, ""));
+
+      if (!valor || valor <= 0) {
+        await enviar(from, {
+          text: "❌ Valor inválido. Ingresa solo números."
+        });
+        return res.sendStatus(200);
+      }
+
+      const result = await registrarAnticipo(
+        adminState[from].orderCode,
+        valor
+      );
+
+      delete adminState[from];
+
+      if (!result) {
+        await enviar(from, {
+          text: "❌ No se pudo registrar el anticipo. Verifica el código."
+        });
+        return res.sendStatus(200);
+      }
+
+      // ✅ Mensaje al ADMIN
+      await enviar(from, {
+        text:
+          `✅ *Anticipo registrado*\n\n` +
+          `Pedido: ${result.order_code}\n` +
+          `Abonado total: $${Number(result.valor_abonado).toLocaleString()}\n` +
+          `Saldo pendiente: $${Number(result.saldo_pendiente).toLocaleString()}`
+      });
+
+      // ✅ Mensaje al CLIENTE
+      let mensajeCliente =
+        `💳 *Hemos recibido tu abono*\n\n` +
+        `Pedido: ${result.order_code}\n` +
+        `Abonado: $${valor.toLocaleString()}\n` +
+        `Saldo pendiente: $${Number(result.saldo_pendiente).toLocaleString()}`;
+
+      if (Number(result.saldo_pendiente) <= 0) {
+        mensajeCliente =
+          `🎉 *¡Pago completado!*\n\n` +
+          `Tu pedido *${result.order_code}* ya se encuentra completamente pagado.\n` +
+          `En breve te contactaremos para continuar con el proceso.`;
+      }
+
+      await enviar(result.numero_whatsapp, {
+        text: mensajeCliente
+      });
+
+      return res.sendStatus(200);
+    }
+
+
 
     // =====================================================
     // 🟦 CLIENTE: OPCIONES MENÚ
@@ -143,10 +227,36 @@ export const handleMessage = async (req, res) => {
     }
 
     if (input === "SALDO") {
-      estado[from] = "esperando_dato_saldo";
-      await enviar(from, pedirDatoSaldo());
+      const pedidos = await consultarSaldo(from);
+
+      if (pedidos?.error || !Array.isArray(pedidos)) {
+        await enviar(from, {
+          text: {
+            body: "📭 No encontramos pedidos activos asociados a este número."
+          }
+        });
+        return res.sendStatus(200);
+      }
+
+      // 🟢 Un solo pedido → mensaje directo
+      if (pedidos.length === 1) {
+        await enviar(from, saldoUnPedido(pedidos[0]));
+        return res.sendStatus(200);
+      }
+
+      // 🟢 Varios pedidos → lista
+      await enviar(from, seleccionarPedidoSaldo(pedidos));
       return res.sendStatus(200);
     }
+
+    // =====================================================
+    // 💵 CLIENTE: ABONAR PEDIDO
+    // =====================================================
+    if (input === "ABONAR") {
+      await enviar(from, infoMediosPago());
+      return res.sendStatus(200);
+    }
+
 
     if (input === "GARANTIA") {
       await enviar(from, {
@@ -172,6 +282,38 @@ export const handleMessage = async (req, res) => {
       });
       return res.sendStatus(200);
     }
+    // =====================================================
+    // 💰 CLIENTE: SELECCIÓN DE PEDIDO DESDE SALDO
+    // =====================================================
+    if (typeof input === "string" && input.startsWith("SALDO_")) {
+      const id = input.replace("SALDO_", "").trim();
+
+      if (!/^\d+$/.test(id)) {
+        return res.sendStatus(200);
+      }
+
+      const pedidos = await consultarSaldo(from);
+
+      if (!Array.isArray(pedidos)) {
+        await enviar(from, {
+          text: { body: "❌ No pudimos obtener la información del pedido." }
+        });
+        return res.sendStatus(200);
+      }
+
+      const pedido = pedidos.find(p => String(p.id) === id);
+
+      if (!pedido) {
+        await enviar(from, {
+          text: { body: "❌ Pedido no encontrado o no pertenece a este número." }
+        });
+        return res.sendStatus(200);
+      }
+
+      await enviar(from, saldoUnPedido(pedido));
+      return res.sendStatus(200);
+    }
+
 
     return res.sendStatus(200);
 

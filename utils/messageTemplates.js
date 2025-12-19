@@ -88,17 +88,38 @@ export const saldoNoEncontrado = () => ({
 
 // --- UN SOLO PEDIDO: MOSTRAR SALDO ---
 export const saldoUnPedido = (order) => ({
-  text: {
-    body:
-      `💰 *Saldo de tu pedido ${order.codigo}*\n\n` +
-      `• Trabajo: ${order.descripcion}\n` +
-      `• Total: $${order.total}\n` +
-      `• Abonado: $${order.anticipo}\n` +
-      `• Saldo pendiente: *$${order.saldo}*\n\n` +
-      `Si deseas abonar escribe *ABONAR ${order.id}*.\n\n` +
-      `Escribe */menu* para regresar.`
+  interactive: {
+    type: "button",
+    body: {
+      text:
+        `💰 *Saldo de tu pedido ${order.codigo}*\n\n` +
+        `• Trabajo: ${order.descripcion}\n` +
+        `• Total: $${order.total.toLocaleString()}\n` +
+        `• Abonado: $${order.anticipo.toLocaleString()}\n` +
+        `• Saldo pendiente: *$${order.saldo.toLocaleString()}*`
+    },
+    action: {
+      buttons: [
+        {
+          type: "reply",
+          reply: {
+            id: "ABONAR",
+            title: "💵 Abonar"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: "MENU",
+            title: "📋 Volver al menú"
+          }
+        }
+      ]
+    }
   }
 });
+
+
 
 // --- VARIOS PEDIDOS: LISTA PARA SELECCIONAR ---
 export const seleccionarPedidoSaldo = (orders) => ({
