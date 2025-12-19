@@ -7,6 +7,8 @@ import {
 import { consultarPedido } from "./orderService.js";
 import { consultarSaldo } from "../db/consultarSaldo.js";
 import { infoMediosPago } from "../utils/messageTemplates.js";
+import { registrarAnticipo } from "../db/anticipo.js";
+
 
 
 
