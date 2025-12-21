@@ -1,6 +1,6 @@
 
 import { getPedidosByPhone } from "../db/orders.js";
-import { listaPedidosTemplate, infoPedidoUnico } from "../utils/messageTemplates.js";
+import { listaPedidosTemplate, estadoPedidoTemplate } from "../utils/messageTemplates.js";
 
 export const consultarPedido = async (from) => {
     try {
@@ -16,7 +16,7 @@ export const consultarPedido = async (from) => {
 
         // Solo un pedido → enviar información directa
         if (pedidos.length === 1) {
-            return infoPedidoUnico(pedidos[0]);
+            return estadoPedidoTemplate(pedidos[0]);
         }
 
         // Varios pedidos → enviar lista interactiva
