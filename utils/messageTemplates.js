@@ -268,8 +268,6 @@ export const textoEstadoPedido = (pedido) => {
 
 
 
-import { estadoPedidoCorto } from "./rutaDelHelper.js";
-
 export const seleccionarPedidoEstado = (pedidos) => ({
   type: "interactive",
   interactive: {
