@@ -93,10 +93,10 @@ export const saldoUnPedido = (order) => ({
     body: {
       text:
         `💰 *Saldo de tu pedido ${order.codigo}*\n\n` +
-        `• Trabajo: ${order.descripcion}\n` +
-        `• Total: $${order.total.toLocaleString()}\n` +
-        `• Abonado: $${order.anticipo.toLocaleString()}\n` +
-        `• Saldo pendiente: *$${order.saldo.toLocaleString()}*`
+        `📦 Trabajo: ${order.descripcion}\n` +
+        `⚖ Total: $${order.total.toLocaleString()}\n` +
+        `💵 Abonado: $${order.anticipo.toLocaleString()}\n` +
+        `🔻 Saldo pendiente: *$${order.saldo.toLocaleString()}*`
     },
     action: {
       buttons: [
@@ -184,19 +184,24 @@ export const listaPedidosTemplate = (pedidos) => {
   };
 };
 
-export const infoPedidoUnico = (pedido) => ({
-  text: {
-    body:
-      `📦 Detalles de tu pedido ${pedido.order_code}
 
-• Estado: ${pedido.estado_pedido}
-• Valor total: ${Number(pedido.valor_total).toLocaleString()}
-• Abonado: ${Number(pedido.valor_abonado).toLocaleString()}
-• Saldo pendiente: ${Number(pedido.saldo_pendiente).toLocaleString()}
-${pedido.fecha_aprox_entrega ? `• Entrega estimada: ${pedido.fecha_aprox_entrega}` : ""}
-`
-  }
-});
+export const estadoPedidoTemplate = (pedido) => {
+  const fechaEntrega = pedido.fecha_aprox_entrega
+    ? `📅 *Entrega estimada:* ${pedido.fecha_aprox_entrega}\n`
+    : "";
+
+  return {
+    text: {
+      body:
+        `📦 *Estado de tu pedido*\n\n` +
+        `🆔 Código: *${pedido.order_code}*\n` +
+        `📌 Estado: *${textoEstadoPedido(pedido)}*\n\n` +
+        fechaEntrega +
+        `\nEscribe *MENU* para volver al inicio.`
+    }
+  };
+};
+
 
 export const infoMediosPago = () => ({
   text: {
@@ -205,8 +210,110 @@ export const infoMediosPago = () => ({
       "• Nequi: 3125906313\n" +
       "• Daviplata: 3125906313\n" +
       "• Bancolombia:941-000017-43 cuenta ahorros\n" +
-      " Daniel Perez Rodriguez\n" +
-      " CC 79977638\n\n"+
+      "Daniel Perez Rodriguez\n" +
+      "CC 79977638\n\n"+
       "📸 Cuando realices el pago, envía el comprobante y un asesor lo registrará."
   }
 });
+
+export const textoEstadoPedido = (pedido) => {
+  // 🧠 Estado legible
+  let estadoTexto = "";
+
+  switch (pedido.estado_pedido) {
+    case "nuevo":
+      estadoTexto = "📝 Pedido registrado";
+      break;
+
+    case "pendiente de anticipo":
+      estadoTexto = "⏳ Pendiente de anticipo";
+      break;
+
+    case "pendiente de inicio":
+      estadoTexto = "🛠️ En proceso de fabricación";
+      break;
+
+    case "pagado":
+      estadoTexto = "🎉 Pago completo recibido";
+      break;
+
+    case "CANCELADO":
+    case "cancelado":
+      estadoTexto = "❌ Pedido cancelado";
+      break;
+
+    default:
+      estadoTexto = pedido.estado_pedido;
+  }
+
+  // 📅 Entrega estimada
+  let entregaTexto = "⏳ Se definirá al iniciar el pedido";
+
+  if (pedido.fecha_aprox_entrega) {
+    const fecha = new Date(pedido.fecha_aprox_entrega);
+    entregaTexto = `📅 ${fecha.toLocaleDateString("es-CO")}`;
+  }
+
+  // 📦 Mensaje final
+  return {
+    text: {
+      body:
+        `📦 *Estado de tu pedido*\n\n` +
+        `Código: *${pedido.order_code}*\n` +
+        `Estado: *${estadoTexto}*\n` +
+        `Entrega estimada: *${entregaTexto}*`
+    }
+  };
+};
+
+
+
+import { estadoPedidoCorto } from "./rutaDelHelper.js";
+
+export const seleccionarPedidoEstado = (pedidos) => ({
+  type: "interactive",
+  interactive: {
+    type: "list",
+    body: {
+      text: "📦 Tienes varios pedidos. Selecciona uno para ver su estado:"
+    },
+    action: {
+      button: "Ver pedidos",
+      sections: [
+        {
+          title: "Mis pedidos",
+          rows: pedidos.map(p => ({
+            id: `PEDIDO_${p.id}`,
+            title: p.order_code,
+            description: estadoPedidoCorto(p.estado_pedido)
+          }))
+        }
+      ]
+    }
+  }
+});
+
+export const estadoPedidoCorto = (estado) => {
+  switch (estado) {
+    case "nuevo":
+      return "📝 Registrado";
+
+    case "pendiente de anticipo":
+      return "⏳ Pendiente de anticipo";
+
+    case "pendiente de inicio":
+      return "🛠️ En fabricación";
+
+    case "pagado":
+      return "🎉 Pagado";
+
+    case "CANCELADO":
+    case "cancelado":
+      return "❌ Cancelado";
+
+    default:
+      return estado;
+  }
+};
+
+

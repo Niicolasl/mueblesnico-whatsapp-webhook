@@ -2,7 +2,7 @@ import { pool } from "./init.js";
 
 export async function registrarAnticipo(orderCode, valorAbonado) {
     try {
-        // Buscar pedido
+        // 🔎 Buscar pedido activo
         const result = await pool.query(
             "SELECT * FROM orders WHERE order_code = $1 AND cancelado = false",
             [orderCode]
@@ -12,24 +12,51 @@ export async function registrarAnticipo(orderCode, valorAbonado) {
 
         const order = result.rows[0];
 
-        const nuevoAbono = Number(order.valor_abonado) + Number(valorAbonado);
-        const nuevoSaldo = Number(order.valor_total) - nuevoAbono;
+        const saldoActual = Number(order.saldo_pendiente);
+        const abonadoActual = Number(order.valor_abonado);
+        const total = Number(order.valor_total);
 
-        // Calcular fecha de entrega (15 días después de HOY)
-        const fechaEntrega = new Date();
-        fechaEntrega.setDate(fechaEntrega.getDate() + 15);
+        // ❌ No permitir abonos si ya está pagado
+        if (saldoActual <= 0) {
+            return { error: "PAGADO" };
+        }
 
-        const fechaEntregaISO = fechaEntrega.toISOString().split("T")[0];
+        // ❌ No permitir abono mayor al saldo
+        if (valorAbonado > saldoActual) {
+            return {
+                error: "EXCEDE_SALDO",
+                saldo: saldoActual
+            };
+        }
+
+        const nuevoAbono = abonadoActual + valorAbonado;
+        const nuevoSaldo = total - nuevoAbono;
+
+        // 📅 Definir fecha de entrega SOLO si es el primer anticipo
+        let fechaEntrega = order.fecha_aprox_entrega;
+
+        if (abonadoActual === 0) {
+            const fecha = new Date();
+            fecha.setDate(fecha.getDate() + 15);
+            fechaEntrega = fecha.toISOString().split("T")[0];
+        }
 
         const update = await pool.query(
             `UPDATE orders
-       SET valor_abonado = $1,
-           saldo_pendiente = $2,
-           fecha_aprox_entrega = $3,
-           estado_pedido = 'pendiente de inicio'
-       WHERE order_code = $4
+       SET
+         valor_abonado = $1,
+         saldo_pendiente = $2,
+         fecha_aprox_entrega = $3,
+         estado_pedido = $4
+       WHERE order_code = $5
        RETURNING *`,
-            [nuevoAbono, nuevoSaldo, fechaEntregaISO, orderCode]
+            [
+                nuevoAbono,
+                nuevoSaldo,
+                fechaEntrega,
+                nuevoSaldo === 0 ? "pagado" : "en_fabricacion",
+                orderCode
+            ]
         );
 
         return update.rows[0];

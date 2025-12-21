@@ -1,17 +1,15 @@
 import { createOrder } from "../db/orders.js";
 import { sendMessage } from "../services/whatsappSender.js";
 
+/**
+ * Estado del flujo por admin
+ * adminPhone -> { step, data }
+ */
 export const newOrderState = {};
 
-/*
- Flujo:
- Paso 1 → nombre
- Paso 2 → número
- Paso 3 → descripción
- Paso 4 → valor total
- Paso 5 → confirmación
-*/
-
+/**
+ * Paso 1: iniciar flujo
+ */
 export async function startNewOrderFlow(admin) {
     newOrderState[admin] = {
         step: 1,
@@ -21,17 +19,25 @@ export async function startNewOrderFlow(admin) {
     await sendMessage(admin, {
         messaging_product: "whatsapp",
         text: {
-            body: "✏️ *Nuevo Pedido*\n\nEscribe el *nombre del cliente*:\n\n❌ Escribe */no* para cancelar"
+            body:
+                "✏️ *Nuevo Pedido*\n\n" +
+                "Escribe el *nombre del cliente*:\n\n" +
+                "❌ Escribe */no* para cancelar"
         }
     });
 }
 
+/**
+ * Manejo de cada paso
+ */
 export async function handleNewOrderStep(admin, message) {
     const state = newOrderState[admin];
     if (!state) return;
 
+    const texto = message.trim();
+
     // ❌ Cancelación global
-    if (message.toLowerCase() === "/no") {
+    if (texto.toLowerCase() === "/no") {
         delete newOrderState[admin];
         await sendMessage(admin, {
             messaging_product: "whatsapp",
@@ -41,25 +47,32 @@ export async function handleNewOrderStep(admin, message) {
     }
 
     switch (state.step) {
+        /** ---------------- PASO 1 ---------------- */
         case 1:
-            state.data.nombre_cliente = message;
+            state.data.nombre_cliente = texto;
             state.step = 2;
+
             await sendMessage(admin, {
                 messaging_product: "whatsapp",
                 text: {
-                    body: "📱 Escribe el *número de WhatsApp* del cliente (10 dígitos, sin 57):"
+                    body:
+                        "📱 Escribe el *número de WhatsApp* del cliente\n" +
+                        "(10 dígitos, Colombia, sin 57):"
                 }
             });
             break;
 
+        /** ---------------- PASO 2 ---------------- */
         case 2: {
-            const numero = message.replace(/\D/g, "");
+            const numero = texto.replace(/\D/g, "");
 
             if (numero.length !== 10) {
                 await sendMessage(admin, {
                     messaging_product: "whatsapp",
                     text: {
-                        body: "⚠️ El número debe tener *10 dígitos* (Colombia, sin 57). Intenta nuevamente:"
+                        body:
+                            "⚠️ El número debe tener *10 dígitos* (sin 57).\n" +
+                            "Intenta nuevamente:"
                     }
                 });
                 return;
@@ -67,30 +80,40 @@ export async function handleNewOrderStep(admin, message) {
 
             state.data.numero_whatsapp = numero;
             state.step = 3;
+
             await sendMessage(admin, {
                 messaging_product: "whatsapp",
-                text: { body: "🛠️ Describe brevemente el *trabajo a realizar*:" }
+                text: {
+                    body: "🛠️ Describe brevemente el *trabajo a realizar*:"
+                }
             });
             break;
         }
 
+        /** ---------------- PASO 3 ---------------- */
         case 3:
-            state.data.descripcion_trabajo = message;
+            state.data.descripcion_trabajo = texto;
             state.step = 4;
+
             await sendMessage(admin, {
                 messaging_product: "whatsapp",
-                text: { body: "💰 Escribe el *valor total del pedido* (solo números):" }
+                text: {
+                    body: "💰 Escribe el *valor total del pedido* (solo números):"
+                }
             });
             break;
 
+        /** ---------------- PASO 4 ---------------- */
         case 4: {
-            const valor = Number(message.replace(/\D/g, ""));
+            const valor = Number(texto.replace(/\D/g, ""));
 
             if (!valor || valor <= 0) {
                 await sendMessage(admin, {
                     messaging_product: "whatsapp",
                     text: {
-                        body: "⚠️ El valor debe ser un número mayor a 0. Intenta nuevamente:"
+                        body:
+                            "⚠️ El valor debe ser un número mayor a 0.\n" +
+                            "Intenta nuevamente:"
                     }
                 });
                 return;
@@ -99,17 +122,14 @@ export async function handleNewOrderStep(admin, message) {
             state.data.valor_total = valor;
             state.step = 5;
 
-            const resumen = `
-📋 *Confirma el pedido*
-
-👤 Cliente: ${state.data.nombre_cliente}
-📱 Teléfono: ${state.data.numero_whatsapp}
-🛠️ Trabajo: ${state.data.descripcion_trabajo}
-💰 Valor: ${valor.toLocaleString()}
-
-✅ Responde *SI* para confirmar
-❌ Escribe */no* para cancelar
-`;
+            const resumen =
+                "📋 *Confirma el pedido*\n\n" +
+                `👤 Cliente: ${state.data.nombre_cliente}\n` +
+                `📱 Teléfono: ${state.data.numero_whatsapp}\n` +
+                `🛠️ Trabajo: ${state.data.descripcion_trabajo}\n` +
+                `💰 Valor: $${valor.toLocaleString()}\n\n` +
+                "✅ Responde *SI* para confirmar\n" +
+                "❌ Escribe */no* para cancelar";
 
             await sendMessage(admin, {
                 messaging_product: "whatsapp",
@@ -118,14 +138,35 @@ export async function handleNewOrderStep(admin, message) {
             break;
         }
 
+        /** ---------------- PASO 5 ---------------- */
         case 5:
-            if (message.toLowerCase() === "si") {
+            if (texto.toLowerCase() === "si") {
                 const order = await createOrder(state.data);
 
+                // ✅ Confirmación al ADMIN
                 await sendMessage(admin, {
                     messaging_product: "whatsapp",
                     text: {
-                        body: `✅ *Pedido creado correctamente*\n\nCódigo: *${order.order_code}*\nCliente: ${order.nombre_cliente}\nValor total: ${order.valor_total.toLocaleString()}\n\nEstado: pendiente de anticipo`
+                        body:
+                            "✅ *Pedido creado correctamente*\n\n" +
+                            `Código: *${order.order_code}*\n` +
+                            `Cliente: ${order.nombre_cliente}\n` +
+                            `Valor total: $${Number(order.valor_total).toLocaleString()}\n\n` +
+                            "📌 Estado: Pendiente de anticipo"
+                    }
+                });
+
+                // 📲 NOTIFICACIÓN AL CLIENTE
+                await sendMessage(order.numero_whatsapp, {
+                    messaging_product: "whatsapp",
+                    text: {
+                        body:
+                            "📝 *Pedido registrado*\n\n" +
+                            `Código: *${order.order_code}*\n` +
+                            `Trabajo: ${order.descripcion_trabajo}\n` +
+                            `Valor total: $${Number(order.valor_total).toLocaleString()}\n\n` +
+                            "📌 Estado actual: *Pendiente de anticipo*\n" +
+                            "Te avisaremos cuando haya novedades 🙌"
                     }
                 });
 
@@ -134,7 +175,8 @@ export async function handleNewOrderStep(admin, message) {
                 await sendMessage(admin, {
                     messaging_product: "whatsapp",
                     text: {
-                        body: "⚠️ Responde *SI* para confirmar o */no* para cancelar."
+                        body:
+                            "⚠️ Responde *SI* para confirmar o */no* para cancelar."
                     }
                 });
             }

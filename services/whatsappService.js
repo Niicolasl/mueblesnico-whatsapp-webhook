@@ -8,8 +8,17 @@ import { consultarPedido } from "./orderService.js";
 import { consultarSaldo } from "../db/consultarSaldo.js";
 import { infoMediosPago } from "../utils/messageTemplates.js";
 import { registrarAnticipo } from "../db/anticipo.js";
+import { cancelarPedido } from "../db/cancelarPedido.js";
+import { obtenerPedidoActivo } from "../db/validarPedidoActivo.js";
+import { actualizarEstadoPedido } from "../db/actualizarEstadoPedido.js";
 
 
+
+
+import {
+  estadoPedidoTemplate,
+  seleccionarPedidoEstado
+} from "../utils/messageTemplates.js";
 
 
 import {
@@ -133,6 +142,118 @@ export const handleMessage = async (req, res) => {
     }
 
     // =====================================================
+    // ❌ ADMIN: CANCELAR PEDIDO
+    // =====================================================
+    if (esAdmin && inputLower === "/cancelar") {
+      adminState[from] = { step: "cancelar_codigo" };
+
+      await enviar(from, {
+        text: {
+          body: "📌 Ingresa el *código del pedido* a cancelar"
+        }
+      });
+
+      return res.sendStatus(200);
+    }
+
+    if (esAdmin && adminState[from]?.step === "cancelar_codigo") {
+      const orderCode = input.toUpperCase();
+
+      const result = await cancelarPedido(orderCode);
+
+      if (result === null) {
+        await enviar(from, {
+          text: {
+            body: "⚠️ El pedido no existe o ya estaba cancelado."
+          }
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
+
+      if (result === "error") {
+        await enviar(from, {
+          text: {
+            body: "❌ Ocurrió un error al cancelar el pedido."
+          }
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
+
+      await enviar(from, {
+        text: {
+          body:
+            `❌ *Pedido cancelado*\n\n` +
+            `Pedido: ${result.order_code}`
+        }
+      });
+
+      delete adminState[from];
+      return res.sendStatus(200);
+    }
+
+    // =====================================================
+    // =====================================================
+    // 🟩 ADMIN: CAMBIO DE ESTADO MANUAL (ÚNICO)
+    // =====================================================
+
+    const comandosEstado = {
+      "/panticipo": "PENDIENTE_ANTICIPO",
+      "/listo": "LISTO",
+      "/entregado": "ENTREGADO"
+    };
+
+    if (esAdmin && comandosEstado[inputLower]) {
+      adminState[from] = {
+        step: "estado_codigo",
+        nuevoEstado: comandosEstado[inputLower]
+      };
+
+      await enviar(from, {
+        text: { body: "📌 Ingresa el *código del pedido*" }
+      });
+
+      return res.sendStatus(200);
+    }
+
+    if (esAdmin && adminState[from]?.step === "estado_codigo") {
+      const orderCode = input.toUpperCase();
+      const nuevoEstado = adminState[from].nuevoEstado;
+
+      const validacion = await obtenerPedidoActivo(orderCode);
+
+      if (validacion.error === "NO_EXISTE") {
+        await enviar(from, { text: { body: "❌ Pedido no encontrado." } });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
+
+      if (validacion.error === "CANCELADO") {
+        await enviar(from, {
+          text: { body: "⛔ Este pedido está CANCELADO y no admite cambios." }
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
+
+      const pedido = await actualizarEstadoPedido(orderCode, nuevoEstado);
+
+      delete adminState[from];
+
+      await enviar(from, {
+        text: {
+          body:
+            `✅ *Estado actualizado*\n\n` +
+            `Pedido: ${pedido.order_code}\n` +
+            `Nuevo estado: ${nuevoEstado.replace("_", " ")}`
+        }
+      });
+
+      return res.sendStatus(200);
+    }
+
+    // =====================================================
     // 🟩 ADMIN: ANTICIPO
     // =====================================================
 
@@ -149,17 +270,36 @@ export const handleMessage = async (req, res) => {
     }
 
     if (esAdmin && adminState[from]?.step === "anticipo_codigo") {
-      adminState[from].orderCode = input.toUpperCase();
+      const codigo = input.toUpperCase();
+
+      const validacion = await obtenerPedidoActivo(codigo);
+
+      if (validacion.error === "NO_EXISTE") {
+        await enviar(from, {
+          text: { body: "❌ El pedido no existe." }
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
+
+      if (validacion.error === "CANCELADO") {
+        await enviar(from, {
+          text: { body: "❌ Este pedido está CANCELADO y no admite cambios." }
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
+
+      adminState[from].orderCode = codigo;
       adminState[from].step = "anticipo_valor";
 
       await enviar(from, {
-        text: {
-          body: "💵 Ingresa el *valor abonado*"
-        }
+        text: { body: "💵 Ingresa el *valor abonado*" }
       });
 
       return res.sendStatus(200);
     }
+
 
     if (esAdmin && adminState[from]?.step === "anticipo_valor") {
       const valor = Number(input.replace(/[^\d]/g, ""));
@@ -177,6 +317,27 @@ export const handleMessage = async (req, res) => {
         adminState[from].orderCode,
         valor
       );
+
+      if (result?.error === "EXCEDE_SALDO") {
+        await enviar(from, {
+          text: {
+            body:
+              `❌ El valor ingresado excede el saldo pendiente.\n\n` +
+              `Saldo actual: $${Number(result.saldo).toLocaleString()}`
+          }
+        });
+        return res.sendStatus(200);
+      }
+
+      if (result?.error === "PAGADO") {
+        await enviar(from, {
+          text: {
+            body: "✅ Este pedido ya se encuentra completamente pagado."
+          }
+        });
+        return res.sendStatus(200);
+      }
+
 
       delete adminState[from];
 
@@ -237,10 +398,26 @@ export const handleMessage = async (req, res) => {
     }
 
     if (input === "PEDIDO") {
-      const r = await consultarPedido(from);
-      await enviar(from, r);
+      const pedidos = await consultarPedido(from);
+
+      if (!Array.isArray(pedidos) || pedidos.length === 0) {
+        await enviar(from, {
+          text: { body: "📭 No encontramos pedidos activos asociados a este número." }
+        });
+        return res.sendStatus(200);
+      }
+
+      // 🟢 Un solo pedido → estado directo
+      if (pedidos.length === 1) {
+        await enviar(from, estadoPedidoTemplate(pedidos[0]));
+        return res.sendStatus(200);
+      }
+
+      // 🟢 Varios pedidos → lista
+      await enviar(from, seleccionarPedidoEstado(pedidos));
       return res.sendStatus(200);
     }
+
 
     if (input === "SALDO") {
       const pedidos = await consultarSaldo(from);
@@ -329,6 +506,39 @@ export const handleMessage = async (req, res) => {
       await enviar(from, saldoUnPedido(pedido));
       return res.sendStatus(200);
     }
+
+    // =====================================================
+    // 📦 CLIENTE: SELECCIÓN DE PEDIDO DESDE ESTADO
+    // =====================================================
+    if (typeof input === "string" && input.startsWith("PEDIDO_")) {
+      const id = input.replace("PEDIDO_", "").trim();
+
+      if (!/^\d+$/.test(id)) {
+        return res.sendStatus(200);
+      }
+
+      const pedidos = await consultarPedido(from);
+
+      if (!Array.isArray(pedidos)) {
+        await enviar(from, {
+          text: { body: "❌ No pudimos obtener la información del pedido." }
+        });
+        return res.sendStatus(200);
+      }
+
+      const pedido = pedidos.find(p => String(p.id) === id);
+
+      if (!pedido) {
+        await enviar(from, {
+          text: { body: "❌ Pedido no encontrado o no pertenece a este número." }
+        });
+        return res.sendStatus(200);
+      }
+
+      await enviar(from, estadoPedidoTemplate(pedido));
+      return res.sendStatus(200);
+    }
+
 
 
     return res.sendStatus(200);
