@@ -1,6 +1,8 @@
 
 import { getPedidosByPhone } from "../db/orders.js";
-import { listaPedidosTemplate, estadoPedidoTemplate } from "../utils/messageTemplates.js";
+import { estadoPedidoTemplate, seleccionarPedidoEstado } 
+from "../utils/messageTemplates.js";
+
 
 export const consultarPedido = async (from) => {
     try {
@@ -20,7 +22,7 @@ export const consultarPedido = async (from) => {
         }
 
         // Varios pedidos → enviar lista interactiva
-        return listaPedidosTemplate(pedidos);
+        return seleccionarPedidoEstado(pedidos);
 
     } catch (err) {
         console.error("Error consultando pedido:", err);
