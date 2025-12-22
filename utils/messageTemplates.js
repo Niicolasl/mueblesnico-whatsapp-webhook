@@ -17,12 +17,12 @@ export const menuPrincipal = () => ({
         {
           title: "Opciones disponibles",
           rows: [
-            { id: "COTIZAR", title: "🪑 Cotizar mueble", description: "Solicitar una cotización" },
-            { id: "PEDIDO", title: "📦 Estado de pedido", description: "Ver cómo va tu pedido" },
-            { id: "SALDO", title: "💰 Consultar saldo", description: "Ver pagos y saldo pendiente" },
-            { id: "GARANTIA", title: "🛡️ Garantía", description: "Condiciones y soporte" },
-            { id: "TIEMPOS", title: "⏱️ Tiempos de entrega", description: "Plazos aproximados" },
-            { id: "ASESOR", title: "📞 Hablar con asesor", description: "Atención personalizada" }
+            { id: "COTIZAR", title: "🪑 Cotizar mueble" },
+            { id: "PEDIDO", title: "📦 Estado de pedido" },
+            { id: "SALDO", title: "💰 Consultar saldo" },
+            { id: "GARANTIA", title: "🛡️ Garantía" },
+            { id: "TIEMPOS", title: "⏱️ Tiempos de entrega" },
+            { id: "ASESOR", title: "📞 Hablar con asesor" }
           ]
         }
       ]
@@ -33,84 +33,30 @@ export const menuPrincipal = () => ({
 /* =====================================================
    📭 SIN PEDIDOS
 ===================================================== */
-export const noTienePedidos = () => ({
+export const saldoNoEncontrado = () => ({
   text: {
     body:
       "📭 No encontramos pedidos activos asociados a este número.\n\n" +
-      "Si deseas cotizar, selecciona *🪑 Cotizar mueble* en el menú."
+      "Escribe *MENU* para volver al inicio."
   }
 });
 
 /* =====================================================
-   📦 LISTA DE PEDIDOS (ESTADO)
-===================================================== */
-export const seleccionarPedidoEstado = (pedidos) => ({
-  interactive: {
-    type: "list",
-    body: {
-      text: "📦 Tienes varios pedidos. Selecciona uno para ver su estado:"
-    },
-    action: {
-      button: "Ver pedidos",
-      sections: [
-        {
-          title: "Mis pedidos",
-          rows: pedidos.map(p => ({
-            id: `PEDIDO_${p.id}`,
-            title: p.order_code,
-            description: estadoPedidoCorto(p.estado_pedido)
-          }))
-        }
-      ]
-    }
-  }
-});
-
-/* =====================================================
-   📦 ESTADO DE UN PEDIDO
-===================================================== */
-export const estadoPedidoTemplate = (pedido) => {
-  const estadoTexto = textoEstadoPedido(pedido.estado_pedido);
-  const entregaTexto = pedido.fecha_aprox_entrega
-    ? `📅 *Entrega estimada:* ${formatearFecha(pedido.fecha_aprox_entrega)}`
-    : "📅 *Entrega estimada:* Se definirá al iniciar el pedido";
-
-  return {
-    text: {
-      body:
-        `📦 *Estado de tu pedido*\n\n` +
-        `🆔 Código: *${pedido.order_code}*\n` +
-        `📌 Estado: *${estadoTexto}*\n` +
-        `${entregaTexto}\n\n` +
-        `Escribe *MENU* para volver al inicio.`
-    }
-  };
-};
-
-/* =====================================================
-   💰 SALDO – PEDIR DATO
+   💰 PEDIR DATO SALDO
 ===================================================== */
 export const pedirDatoSaldo = () => ({
   text: {
     body:
       "💰 *Consulta de saldo*\n\n" +
-      "Por favor escribe el *código del pedido* que deseas consultar."
+      "Escribe:\n" +
+      "• Código del pedido (ej: MN-2025-0001)\n" +
+      "• O tu número de WhatsApp\n\n" +
+      "Ejemplo:\nMN-2025-0001"
   }
 });
 
 /* =====================================================
-   💰 SALDO – NO ENCONTRADO
-===================================================== */
-export const saldoNoEncontrado = () => ({
-  text: {
-    body:
-      "❌ No encontramos un pedido con ese código.\n\n" +
-      "Verifica e intenta nuevamente o escribe *MENU*."
-  }
-});
-
-/* =====================================================
-   💰 SALDO – UN SOLO PEDIDO
+   💰 SALDO – UN PEDIDO
 ===================================================== */
 export const saldoUnPedido = (order) => ({
   interactive: {
@@ -139,17 +85,16 @@ export const saldoUnPedido = (order) => ({
 export const seleccionarPedidoSaldo = (orders) => ({
   interactive: {
     type: "list",
-    header: { type: "text", text: "💰 Tus saldos" },
-    body: { text: "Selecciona el pedido del que deseas ver el saldo:" },
+    body: { text: "Selecciona el pedido:" },
     action: {
       button: "Ver pedidos",
       sections: [
         {
-          title: "Pedidos activos",
+          title: "Pedidos",
           rows: orders.map(o => ({
             id: `SALDO_${o.id}`,
             title: o.order_code,
-            description: `Saldo pendiente: $${Number(o.saldo_pendiente).toLocaleString()}`
+            description: `Saldo: $${Number(o.saldo_pendiente).toLocaleString()}`
           }))
         }
       ]
@@ -158,35 +103,71 @@ export const seleccionarPedidoSaldo = (orders) => ({
 });
 
 /* =====================================================
-   📋 LISTA SIMPLE (compatibilidad orderService)
+   📦 LISTA PEDIDOS (ESTADO)
 ===================================================== */
-export const listaPedidosTemplate = seleccionarPedidoEstado;
+export const seleccionarPedidoEstado = (pedidos) => ({
+  interactive: {
+    type: "list",
+    body: { text: "Selecciona un pedido:" },
+    action: {
+      button: "Ver pedidos",
+      sections: [
+        {
+          title: "Mis pedidos",
+          rows: pedidos.map(p => ({
+            id: `PEDIDO_${p.id}`,
+            title: p.order_code,
+            description: estadoPedidoCorto(p.estado_pedido)
+          }))
+        }
+      ]
+    }
+  }
+});
 
 /* =====================================================
-   🧠 HELPERS DE ESTADO
+   📦 ESTADO PEDIDO
+===================================================== */
+export const estadoPedidoTemplate = (pedido) => ({
+  text: {
+    body:
+      `📦 *Estado de tu pedido*\n\n` +
+      `🆔 Código: *${pedido.order_code}*\n` +
+      `📌 Estado: *${textoEstadoPedido(pedido.estado_pedido)}*\n` +
+      `📅 Entrega estimada: ${pedido.fecha_aprox_entrega
+        ? formatearFecha(pedido.fecha_aprox_entrega)
+        : "Por definir"}\n\n` +
+      `Escribe *MENU* para volver al inicio.`
+  }
+});
+
+/* =====================================================
+   💵 MEDIOS DE PAGO
+===================================================== */
+export const infoMediosPago = () => ({
+  text: {
+    body:
+      "💵 *Medios de pago*\n\n" +
+      "• Nequi / Daviplata: 3125906313\n" +
+      "• Bancolombia Ahorros: 941-000017-43\n" +
+      "Daniel Perez Rodriguez\n\n" +
+      "📸 Envía el comprobante para registrar tu pago."
+  }
+});
+
+/* =====================================================
+   🧠 HELPERS
 ===================================================== */
 export const textoEstadoPedido = (estado) => {
   switch (estado) {
     case "pendiente de anticipo": return "⏳ Pendiente de anticipo";
     case "pendiente de inicio": return "🛠️ En fabricación";
-    case "pagado": return "🎉 Pago completo recibido";
-    case "listo para entregar": return "📦 Listo para entregar";
-    case "entregado": return "✅ Entregado";
-    case "cancelado":
-    case "CANCELADO": return "❌ Pedido cancelado";
-    default: return estado;
-  }
-};
-
-export const estadoPedidoCorto = (estado) => {
-  switch (estado) {
-    case "pendiente de anticipo": return "⏳ Pendiente";
-    case "pendiente de inicio": return "🛠️ En fabricación";
     case "pagado": return "🎉 Pagado";
-    case "listo para entregar": return "📦 Listo";
     case "entregado": return "✅ Entregado";
     case "cancelado":
     case "CANCELADO": return "❌ Cancelado";
     default: return estado;
   }
 };
+
+export const estadoPedidoCorto = textoEstadoPedido;
