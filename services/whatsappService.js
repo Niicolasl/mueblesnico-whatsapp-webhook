@@ -11,6 +11,8 @@ import { registrarAnticipo } from "../db/anticipo.js";
 import { cancelarPedido } from "../db/cancelarPedido.js";
 import { obtenerPedidoActivo } from "../db/validarPedidoActivo.js";
 import { actualizarEstadoPedido } from "../db/actualizarEstadoPedido.js";
+import { getPedidosByPhone } from "../db/orders.js";
+
 
 
 
@@ -398,7 +400,7 @@ export const handleMessage = async (req, res) => {
     }
 
     if (input === "PEDIDO") {
-      const pedidos = await consultarPedido(from);
+      const pedidos = await getPedidosByPhone(from);
 
       if (!Array.isArray(pedidos) || pedidos.length === 0) {
         await enviar(from, {
@@ -517,7 +519,7 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      const pedidos = await consultarPedido(from);
+      const pedidos = await getPedidosByPhone(from);
 
       if (!Array.isArray(pedidos)) {
         await enviar(from, {
