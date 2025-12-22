@@ -67,11 +67,10 @@ export const seleccionarPedidoEstado = (pedidos) => ({
 });
 
 /* =====================================================
-   📦 ESTADO DE UN PEDIDO (CLIENTE)
+   📦 ESTADO DE UN PEDIDO
 ===================================================== */
 export const estadoPedidoTemplate = (pedido) => {
   const estadoTexto = textoEstadoPedido(pedido.estado_pedido);
-
   const entregaTexto = pedido.fecha_aprox_entrega
     ? `📅 *Entrega estimada:* ${formatearFecha(pedido.fecha_aprox_entrega)}`
     : "📅 *Entrega estimada:* Se definirá al iniciar el pedido";
@@ -87,6 +86,28 @@ export const estadoPedidoTemplate = (pedido) => {
     }
   };
 };
+
+/* =====================================================
+   💰 SALDO – PEDIR DATO
+===================================================== */
+export const pedirDatoSaldo = () => ({
+  text: {
+    body:
+      "💰 *Consulta de saldo*\n\n" +
+      "Por favor escribe el *código del pedido* que deseas consultar."
+  }
+});
+
+/* =====================================================
+   💰 SALDO – NO ENCONTRADO
+===================================================== */
+export const saldoNoEncontrado = () => ({
+  text: {
+    body:
+      "❌ No encontramos un pedido con ese código.\n\n" +
+      "Verifica e intenta nuevamente o escribe *MENU*."
+  }
+});
 
 /* =====================================================
    💰 SALDO – UN SOLO PEDIDO
@@ -105,14 +126,8 @@ export const saldoUnPedido = (order) => ({
     },
     action: {
       buttons: [
-        {
-          type: "reply",
-          reply: { id: "ABONAR", title: "💵 Abonar" }
-        },
-        {
-          type: "reply",
-          reply: { id: "MENU", title: "📋 Volver al menú" }
-        }
+        { type: "reply", reply: { id: "ABONAR", title: "💵 Abonar" } },
+        { type: "reply", reply: { id: "MENU", title: "📋 Volver al menú" } }
       ]
     }
   }
@@ -143,60 +158,35 @@ export const seleccionarPedidoSaldo = (orders) => ({
 });
 
 /* =====================================================
-   💵 MEDIOS DE PAGO
+   📋 LISTA SIMPLE (compatibilidad orderService)
 ===================================================== */
-export const infoMediosPago = () => ({
-  text: {
-    body:
-      "💵 *Medios de pago disponibles*\n\n" +
-      "• Nequi: 3125906313\n" +
-      "• Daviplata: 3125906313\n" +
-      "• Bancolombia: 941-000017-43 (Ahorros)\n" +
-      "Daniel Perez Rodriguez\n" +
-      "CC 79977638\n\n" +
-      "📸 Cuando realices el pago, envía el comprobante y un asesor lo registrará."
-  }
-});
+export const listaPedidosTemplate = seleccionarPedidoEstado;
 
 /* =====================================================
    🧠 HELPERS DE ESTADO
 ===================================================== */
 export const textoEstadoPedido = (estado) => {
   switch (estado) {
-    case "pendiente de anticipo":
-      return "⏳ Pendiente de anticipo";
-    case "pendiente de inicio":
-      return "🛠️ En fabricación";
-    case "pagado":
-      return "🎉 Pago completo recibido";
-    case "listo para entregar":
-      return "📦 Listo para entregar";
-    case "entregado":
-      return "✅ Entregado";
+    case "pendiente de anticipo": return "⏳ Pendiente de anticipo";
+    case "pendiente de inicio": return "🛠️ En fabricación";
+    case "pagado": return "🎉 Pago completo recibido";
+    case "listo para entregar": return "📦 Listo para entregar";
+    case "entregado": return "✅ Entregado";
     case "cancelado":
-    case "CANCELADO":
-      return "❌ Pedido cancelado";
-    default:
-      return estado;
+    case "CANCELADO": return "❌ Pedido cancelado";
+    default: return estado;
   }
 };
 
 export const estadoPedidoCorto = (estado) => {
   switch (estado) {
-    case "pendiente de anticipo":
-      return "⏳ Pendiente de anticipo";
-    case "pendiente de inicio":
-      return "🛠️ En fabricación";
-    case "pagado":
-      return "🎉 Pagado";
-    case "listo para entregar":
-      return "📦 Listo";
-    case "entregado":
-      return "✅ Entregado";
+    case "pendiente de anticipo": return "⏳ Pendiente";
+    case "pendiente de inicio": return "🛠️ En fabricación";
+    case "pagado": return "🎉 Pagado";
+    case "listo para entregar": return "📦 Listo";
+    case "entregado": return "✅ Entregado";
     case "cancelado":
-    case "CANCELADO":
-      return "❌ Cancelado";
-    default:
-      return estado;
+    case "CANCELADO": return "❌ Cancelado";
+    default: return estado;
   }
 };
