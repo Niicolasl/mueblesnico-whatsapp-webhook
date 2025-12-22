@@ -64,11 +64,11 @@ export const saldoUnPedido = (order) => ({
     body: {
       text:
         `💰 *Saldo de tu pedido*\n\n` +
-        `🆔 Código: ${order.order_code}\n` +
-        `🛠️ Trabajo: ${order.descripcion_trabajo}\n` +
-        `💵 Total: $${Number(order.valor_total).toLocaleString()}\n` +
-        `💳 Abonado: $${Number(order.valor_abonado).toLocaleString()}\n` +
-        `🔻 Saldo pendiente: *$${Number(order.saldo_pendiente).toLocaleString()}*`
+        `🆔 Código: ${order.codigo}\n` +
+        `🛠️ Trabajo: ${order.descripcion}\n` +
+        `💵 Total: $${Number(order.total).toLocaleString()}\n` +
+        `💳 Abonado: $${Number(order.anticipo).toLocaleString()}\n` +
+        `🔻 Saldo pendiente: *$${Number(order.saldo).toLocaleString()}*`
     },
     action: {
       buttons: [
@@ -79,28 +79,32 @@ export const saldoUnPedido = (order) => ({
   }
 });
 
+
 /* =====================================================
    💰 SALDO – VARIOS PEDIDOS
 ===================================================== */
 export const seleccionarPedidoSaldo = (orders) => ({
   interactive: {
     type: "list",
-    body: { text: "Selecciona el pedido:" },
+    body: {
+      text: "💰 Tienes varios pedidos. Selecciona uno:"
+    },
     action: {
       button: "Ver pedidos",
       sections: [
         {
-          title: "Pedidos",
+          title: "Pedidos activos",
           rows: orders.map(o => ({
             id: `SALDO_${o.id}`,
-            title: o.order_code,
-            description: `Saldo: $${Number(o.saldo_pendiente).toLocaleString()}`
+            title: o.codigo,
+            description: `Saldo: $${Number(o.saldo).toLocaleString()}`
           }))
         }
       ]
     }
   }
 });
+
 
 /* =====================================================
    📦 LISTA PEDIDOS (ESTADO)
