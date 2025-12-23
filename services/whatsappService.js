@@ -119,16 +119,26 @@ if (
 ) {
   const saludoHora = obtenerSaludoColombia();
 
-  await enviar(from, {
-    text: {
-      body:
-        `Hola ${saludoHora} espero estes bien \n\n` +
-        "dime que necesitas y con gusto te ayudo o escribe *Menu* para ver todas las opciones disponibles \n\n"
-    }
-  });
+// 1️⃣ Mensaje de saludo
+await enviar(from, {
+  text: {
+    body:
+      `Hola, ${saludoHora} 😊\n\n` +
+      "Espero que estés muy bien."
+  }
+});
 
-  return res.sendStatus(200);
-}
+// 2️⃣ Mensaje de ayuda
+await enviar(from, {
+  text: {
+    body:
+      "Cuéntame qué necesitas y con gusto te ayudo 🙌\n\n" +
+      "También puedes escribir *MENU* para ver todas las opciones disponibles."
+  }
+});
+
+return res.sendStatus(200);
+
 
     // =====================================================
     // 🟪 SALDO (esperando dato)
