@@ -122,7 +122,7 @@ if (
   await enviar(from, {
   text: {
     body:
-      `Hola, ${saludoHora} 😊\n\n` +
+      `Hola, ${saludoHora} 😊\n` +
       "Espero que estés muy bien."
   }
 });
@@ -130,8 +130,7 @@ if (
 await enviar(from, {
   text: {
     body:
-      "Dime qué necesitas y con gusto te ayudo 🤝\n\n" +
-      "Si prefieres, escribe *MENU* para ver todas las opciones."
+      "Dime qué necesitas y con gusto te ayudo o si prefieres, escribe *MENU* para ver todas las opciones.\n\n"
   }
 });
 ;
