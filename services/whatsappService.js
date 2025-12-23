@@ -393,11 +393,38 @@ export const handleMessage = async (req, res) => {
     // 🟦 CLIENTE: OPCIONES MENÚ
     // =====================================================
     if (input === "COTIZAR") {
-      await enviar(from, {
-        text: { body: "🪑 Perfecto, cuéntanos qué mueble necesitas cotizar." }
-      });
-      return res.sendStatus(200);
+  // iniciamos estado de cotización para este cliente
+  global.estadoCotizacion = global.estadoCotizacion || {};
+  global.estadoCotizacion[from] = { step: "tipoTrabajo" };
+
+  // mensaje 1: aclaración
+  await enviar(from, {
+    text: {
+      body:
+        "🪑 *Cotización de muebles – Muebles Nico*\n\n" +
+        "Para los muebles que requieren *tapicería*:\n" +
+        "• Se cobra únicamente la *mano de obra*.\n" +
+        "• Los materiales los adquiere el cliente, ya que su precio varía según diseño y calidad.\n\n" +
+        "Fabricamos y también *restauramos* muebles.\n\n" +
+        "Cuéntanos qué necesitas y con gusto te ayudamos 😊"
     }
+  });
+
+  // mensaje 2: clasificación del trabajo
+  await enviar(from, {
+    text: {
+      body:
+        "Para orientarte mejor, dinos qué tipo de trabajo necesitas:\n\n" +
+        "1️⃣ Fabricar un mueble nuevo\n" +
+        "2️⃣ Restaurar o tapizar un mueble\n" +
+        "3️⃣ Otro arreglo (reparaciones, rieles, chapas, instalación, etc.)\n\n" +
+        "Respóndenos con el número o escríbenos con tus propias palabras."
+    }
+  });
+
+  return res.sendStatus(200);
+}
+
 
     if (input === "PEDIDO") {
       const pedidos = await getPedidosByPhone(from);
@@ -456,7 +483,16 @@ export const handleMessage = async (req, res) => {
     if (input === "GARANTIA") {
       await enviar(from, {
         text: {
-          body: "🛡️ Todos nuestros muebles cuentan con garantía por defectos de fabricación."
+          body: "🛡️ *GARANTÍA MUEBLES NICO*\n\n" +
+          "Todos nuestros trabajos cuentan con *1 año de garantía*.\n\n" +
+          "*La garantía cubre:*\n\n" +
+          "• Defectos de fábrica en el material\n" +
+          "• Problemas de instalación realizados por nosotros\n\n" +
+          "*La garantía no cubre:*\n\n" +
+          "• Humedad\n" +
+          "• Golpes o mal uso\n" +
+          "• Intervenciones de terceros\n\n" +
+          "🤝 Si llegas a tener algún inconveniente, con gusto lo revisamos y te damos solución de la manera más rápida posible."
         }
       });
       return res.sendStatus(200);
@@ -465,7 +501,13 @@ export const handleMessage = async (req, res) => {
     if (input === "TIEMPOS") {
       await enviar(from, {
         text: {
-          body: "⏱️ Los tiempos de entrega dependen del proyecto. Escríbenos para más detalle."
+          body:  "⏳ *TIEMPOS DE ENTREGA*\n\n" +
+                "El tiempo estimado de fabricación y entrega es de *hasta 15 días calendario* a partir de la confirmación del anticipo.\n\n" +
+                "📦 *Importante:*\n\n" +
+                "• Este plazo es un estimado y puede variar según el tipo de trabajo y la carga del taller.\n" +
+                "• En muchos casos, los pedidos pueden estar *listos antes del tiempo indicado*.\n\n" +
+                "📲 Cuando tu pedido esté finalizado, te contactaremos para coordinar la entrega o instalación.\n\n" +
+                "Gracias por confiar en *Muebles Nico* 🙌"
         }
       });
       return res.sendStatus(200);
