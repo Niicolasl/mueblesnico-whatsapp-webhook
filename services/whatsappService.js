@@ -119,8 +119,7 @@ if (
 ) {
   const saludoHora = obtenerSaludoColombia();
 
-// 1️⃣ Mensaje de saludo
-await enviar(from, {
+  await enviar(from, {
   text: {
     body:
       `Hola, ${saludoHora} 😊\n\n` +
@@ -128,17 +127,17 @@ await enviar(from, {
   }
 });
 
-// 2️⃣ Mensaje de ayuda
 await enviar(from, {
   text: {
     body:
-      "Cuéntame qué necesitas y con gusto te ayudo 🙌\n\n" +
-      "También puedes escribir *MENU* para ver todas las opciones disponibles."
+      "Dime qué necesitas y con gusto te ayudo 🤝\n\n" +
+      "Si prefieres, escribe *MENU* para ver todas las opciones."
   }
 });
+;
 
-return res.sendStatus(200);
-
+  return res.sendStatus(200);
+}
 
     // =====================================================
     // 🟪 SALDO (esperando dato)
