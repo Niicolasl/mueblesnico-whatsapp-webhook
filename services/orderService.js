@@ -12,7 +12,8 @@ export const consultarPedido = async (from) => {
         if (!pedidos || pedidos.length === 0) {
             return {
                 messaging_product: "whatsapp",
-                text: { body: "📭 No encontramos pedidos asociados a este número." }
+                text: { body:  "Por ahora no veo pedidos activos asociados a este número 😊\n\n" +
+      "Si necesitas ayuda con otra cosa, escribe *Menu*."}
             };
         }
 

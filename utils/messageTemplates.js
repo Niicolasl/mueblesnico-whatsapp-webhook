@@ -8,8 +8,8 @@ export const menuPrincipal = () => ({
     type: "list",
     body: {
       text:
-        "Hola 👋 espero que estés muy bien.\n\n" +
-        "¿En qué te puedo ayudar hoy? 😊"
+        "Perfecto 😊\n\n" +
+        "Estas son las opciones en las que te puedo ayudar 👇"
     },
     action: {
       button: "📋 Ver opciones",
@@ -21,8 +21,7 @@ export const menuPrincipal = () => ({
             { id: "PEDIDO", title: "📦 Estado de pedido" },
             { id: "SALDO", title: "💰 Consultar saldo" },
             { id: "GARANTIA", title: "🛡️ Garantía" },
-            { id: "TIEMPOS", title: "⏱️ Tiempos de entrega" },
-            { id: "ASESOR", title: "📞 Hablar conmigo" }
+            { id: "TIEMPOS", title: "⏱️ Tiempos de entrega" }
           ]
         }
       ]

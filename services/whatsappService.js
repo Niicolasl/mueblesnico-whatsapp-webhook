@@ -461,15 +461,16 @@ await enviar(from, {
 
   // mensaje 2: clasificación del trabajo
   await enviar(from, {
-    text: {
-      body:
-        "Cuéntanos qué necesitas y con gusto te ayudamos 😊:\n\n" +
-        "1️⃣ Fabricar un mueble nuevo\n" +
-        "2️⃣ Restaurar o tapizar un mueble\n" +
-        "3️⃣ Otro arreglo (reparaciones, rieles, chapas, instalación, etc.)\n\n" +
-        "Respóndenos con el número o escríbenos con tus propias palabras."
-    }
-  });
+  text: {
+    body:
+      "¿Qué es lo que necesitas hacer? 👇\n\n" +
+      "1️⃣ Fabricar un mueble nuevo\n" +
+      "2️⃣ Restaurar o tapizar un mueble\n" +
+      "3️⃣ Otro arreglo (reparaciones, rieles, chapas, instalación, etc.)\n\n" +
+      "Respóndeme con el número o escríbelo con tus propias palabras."
+  }
+});
+
 
   return res.sendStatus(200);
     }
@@ -630,12 +631,10 @@ if (global.estadoCotizacion?.[from]) {
     if (input === "TIEMPOS") {
       await enviar(from, {
         text: {
-          body:  "⏳ *TIEMPOS DE ENTREGA*\n\n" +
-                "El tiempo estimado de fabricación y entrega es de *hasta 15 días calendario* a partir de la confirmación del anticipo.\n\n" +
-                "📦 *Importante:*\n\n" +
-                "• Este plazo es un estimado y puede variar según el tipo de trabajo y la carga del taller.\n" +
-                "• En muchos casos, los pedidos pueden estar *listos antes del tiempo indicado*.\n\n" +
-                "📲 Cuando tu pedido esté finalizado, te contactaremos para coordinar la entrega o instalación.\n\n" +
+          body: "⏳ Sobre los tiempos de entrega\n\n" +
+                "El tiempo estimado de fabricación y entrega es de *hasta 15 días calendario* desde la confirmación del anticipo.\n\n" +
+                "Este tiempo puede variar según el tipo de trabajo y la carga del taller, y en muchos casos el pedido puede estar listo antes.\n\n" +
+                "Cuando tu pedido esté terminado, te contactaremos para coordinar la entrega o instalación.😊\n\n" +
                 "Gracias por confiar en *Muebles Nico* 🙌"
         }
       });
