@@ -8,11 +8,11 @@ export const menuPrincipal = () => ({
     type: "list",
     body: {
       text:
-        "👋 *Bienvenido a Muebles Nico*\n\n" +
-        "Selecciona una opción para continuar 👇"
+        "Hola 👋 espero que estés muy bien.\n\n" +
+        "¿En qué te puedo ayudar hoy? 😊"
     },
     action: {
-      button: "📋 Abrir menú",
+      button: "📋 Ver opciones",
       sections: [
         {
           title: "Opciones disponibles",
@@ -22,7 +22,7 @@ export const menuPrincipal = () => ({
             { id: "SALDO", title: "💰 Consultar saldo" },
             { id: "GARANTIA", title: "🛡️ Garantía" },
             { id: "TIEMPOS", title: "⏱️ Tiempos de entrega" },
-            { id: "ASESOR", title: "📞 Hablar con asesor" }
+            { id: "ASESOR", title: "📞 Hablar conmigo" }
           ]
         }
       ]
@@ -31,13 +31,13 @@ export const menuPrincipal = () => ({
 });
 
 /* =====================================================
-   📭 SIN PEDIDOS
+   📭 SIN PEDIDOS / SALDO NO ENCONTRADO
 ===================================================== */
 export const saldoNoEncontrado = () => ({
   text: {
     body:
-      "📭 No encontramos pedidos activos asociados a este número.\n\n" +
-      "Escribe *MENU* para volver al inicio."
+      "No encontré pedidos activos asociados a este número 😕\n\n" +
+      "Si quieres, escribe *MENU* y miramos qué más puedo ayudarte."
   }
 });
 
@@ -47,11 +47,11 @@ export const saldoNoEncontrado = () => ({
 export const pedirDatoSaldo = () => ({
   text: {
     body:
-      "💰 *Consulta de saldo*\n\n" +
-      "Escribe:\n" +
-      "• Código del pedido (ej: MN-2025-0001)\n" +
-      "• O tu número de WhatsApp\n\n" +
-      "Ejemplo:\nMN-2025-0001"
+      "Perfecto 😊 te ayudo con eso.\n\n" +
+      "Envíame uno de estos datos:\n" +
+      "• El *código del pedido* (ej: MN-2025-0001)\n" +
+      "• O tu *número de WhatsApp*\n\n" +
+      "Con eso reviso tu saldo enseguida 👍"
   }
 });
 
@@ -63,22 +63,21 @@ export const saldoUnPedido = (order) => ({
     type: "button",
     body: {
       text:
-        `💰 *Saldo de tu pedido*\n\n` +
-        `🆔 Código: ${order.codigo}\n` +
-        `🛠️ Trabajo: ${order.descripcion}\n` +
-        `💵 Total: $${Number(order.total).toLocaleString()}\n` +
-        `💳 Abonado: $${Number(order.anticipo).toLocaleString()}\n` +
-        `🔻 Saldo pendiente: *$${Number(order.saldo).toLocaleString()}*`
+        `Aquí te dejo el estado de tu saldo 💳\n\n` +
+        `🆔 *Pedido:* ${order.codigo}\n` +
+        `🛠️ *Trabajo:* ${order.descripcion}\n` +
+        `💵 *Total:* $${Number(order.total).toLocaleString()}\n` +
+        `💳 *Abonado:* $${Number(order.anticipo).toLocaleString()}\n` +
+        `🔻 *Saldo pendiente:* $${Number(order.saldo).toLocaleString()}`
     },
     action: {
       buttons: [
-        { type: "reply", reply: { id: "ABONAR", title: "💵 Abonar" } },
+        { type: "reply", reply: { id: "ABONAR", title: "💵 Quiero abonar" } },
         { type: "reply", reply: { id: "MENU", title: "📋 Volver al menú" } }
       ]
     }
   }
 });
-
 
 /* =====================================================
    💰 SALDO – VARIOS PEDIDOS
@@ -87,17 +86,19 @@ export const seleccionarPedidoSaldo = (orders) => ({
   interactive: {
     type: "list",
     body: {
-      text: "💰 Tienes varios pedidos. Selecciona uno:"
+      text:
+        "Veo que tienes varios pedidos activos 😊\n\n" +
+        "Selecciona el que quieras revisar:"
     },
     action: {
       button: "Ver pedidos",
       sections: [
         {
-          title: "Pedidos activos",
+          title: "Mis pedidos",
           rows: orders.map(o => ({
             id: `SALDO_${o.id}`,
             title: o.codigo,
-            description: `Saldo: $${Number(o.saldo).toLocaleString()}`
+            description: `Saldo pendiente: $${Number(o.saldo).toLocaleString()}`
           }))
         }
       ]
@@ -105,14 +106,17 @@ export const seleccionarPedidoSaldo = (orders) => ({
   }
 });
 
-
 /* =====================================================
    📦 LISTA PEDIDOS (ESTADO)
 ===================================================== */
 export const seleccionarPedidoEstado = (pedidos) => ({
   interactive: {
     type: "list",
-    body: { text: "Selecciona un pedido:" },
+    body: {
+      text:
+        "Estos son tus pedidos activos 📦\n\n" +
+        "Elige uno para ver cómo va:"
+    },
     action: {
       button: "Ver pedidos",
       sections: [
@@ -135,13 +139,15 @@ export const seleccionarPedidoEstado = (pedidos) => ({
 export const estadoPedidoTemplate = (pedido) => ({
   text: {
     body:
-      `📦 *Estado de tu pedido*\n\n` +
-      `🆔 Código: *${pedido.order_code}*\n` +
-      `📌 Estado: *${textoEstadoPedido(pedido.estado_pedido)}*\n` +
-      `📅 Entrega estimada: ${pedido.fecha_aprox_entrega
-        ? formatearFecha(pedido.fecha_aprox_entrega)
-        : "Por definir"}\n\n` +
-      `Escribe *MENU* para volver al inicio.`
+      `Así va tu pedido 😊\n\n` +
+      `🆔 *Pedido:* ${pedido.order_code}\n` +
+      `📌 *Estado:* ${textoEstadoPedido(pedido.estado_pedido)}\n` +
+      `📅 *Entrega estimada:* ${
+        pedido.fecha_aprox_entrega
+          ? formatearFecha(pedido.fecha_aprox_entrega)
+          : "Por definir"
+      }\n\n` +
+      `Si necesitas algo más, escribe *MENU*.`
   }
 });
 
@@ -151,11 +157,11 @@ export const estadoPedidoTemplate = (pedido) => ({
 export const infoMediosPago = () => ({
   text: {
     body:
-      "💵 *Medios de pago*\n\n" +
+      "Estos son los medios de pago disponibles 💵\n\n" +
       "• Nequi / Daviplata: 3125906313\n" +
-      "• Bancolombia Ahorros: 941-000017-43\n" +
+      "• Bancolombia (Ahorros): 941-000017-43\n" +
       "Daniel Perez Rodriguez\n\n" +
-      "📸 Envía el comprobante para registrar tu pago."
+      "Cuando realices el pago, envíame el comprobante y yo lo registro 👍"
   }
 });
 
@@ -164,13 +170,19 @@ export const infoMediosPago = () => ({
 ===================================================== */
 export const textoEstadoPedido = (estado) => {
   switch (estado) {
-    case "pendiente de anticipo": return "⏳ Pendiente de anticipo";
-    case "pendiente de inicio": return "🛠️ En fabricación";
-    case "pagado": return "🎉 Pagado";
-    case "entregado": return "✅ Entregado";
+    case "pendiente de anticipo":
+      return "⏳ Pendiente de anticipo";
+    case "pendiente de inicio":
+      return "🛠️ En fabricación";
+    case "pagado":
+      return "🎉 Pagado";
+    case "entregado":
+      return "✅ Entregado";
     case "cancelado":
-    case "CANCELADO": return "❌ Cancelado";
-    default: return estado;
+    case "CANCELADO":
+      return "❌ Cancelado";
+    default:
+      return estado;
   }
 };
 

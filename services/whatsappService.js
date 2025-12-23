@@ -130,7 +130,7 @@ if (
 await enviar(from, {
   text: {
     body:
-      "Dime qué necesitas y con gusto te ayudo o si prefieres, escribe *MENU* para ver todas las opciones.\n\n"
+      "Dime qué necesitas y con gusto te ayudo o si prefieres, escribe *Menu* para ver todas las opciones.\n\n"
   }
 });
 ;
