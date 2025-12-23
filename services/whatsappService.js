@@ -12,6 +12,8 @@ import { cancelarPedido } from "../db/cancelarPedido.js";
 import { obtenerPedidoActivo } from "../db/validarPedidoActivo.js";
 import { actualizarEstadoPedido } from "../db/actualizarEstadoPedido.js";
 import { getPedidosByPhone } from "../db/orders.js";
+import { obtenerSaludoColombia } from "../utils/saludos.js";
+
 
 
 
@@ -87,6 +89,46 @@ export const handleMessage = async (req, res) => {
     const estado = global.estadoCliente;
 
     const esAdmin = ADMINS.includes(from);
+
+    // =====================================================
+// 👋 SALUDOS NATURALES (ANTES DE TODO)
+// =====================================================
+const saludos = [
+  "hola",
+  "holi",
+  "buenas",
+  "buen día",
+  "buen dia",
+  "buenos días",
+  "buenos dias",
+  "buenas tardes",
+  "buenas noches",
+  "holaa",
+  "buenass",
+  "saludos",
+];
+
+const esSaludo = saludos.some(saludo =>
+  inputLower === saludo || inputLower.startsWith(saludo)
+);
+
+if (
+  esSaludo &&
+  !global.estadoCotizacion?.[from] &&
+  !global.adminState?.[from]
+) {
+  const saludoHora = obtenerSaludoColombia();
+
+  await enviar(from, {
+    text: {
+      body:
+        `Hola ${saludoHora} espero estes bien \n\n` +
+        "dime que necesitas y con gusto te ayudo o escribe *Menu* para ver todas las opciones disponibles \n\n"
+    }
+  });
+
+  return res.sendStatus(200);
+}
 
     // =====================================================
     // 🟪 SALDO (esperando dato)
