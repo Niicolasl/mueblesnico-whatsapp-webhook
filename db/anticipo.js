@@ -37,7 +37,7 @@ export async function registrarAnticipo(orderCode, valorAbonado) {
 
         if (abonadoActual === 0) {
             const fecha = new Date();
-            fecha.setDate(fecha.getDate() + 15);
+            fecha.setDate(fecha.getDate() + 18);
             fechaEntrega = fecha.toISOString().split("T")[0];
         }
 

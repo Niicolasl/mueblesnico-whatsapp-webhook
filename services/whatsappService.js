@@ -6,7 +6,6 @@ import {
 
 import { consultarPedido } from "./orderService.js";
 import { consultarSaldo } from "../db/consultarSaldo.js";
-import { infoMediosPago } from "../utils/messageTemplates.js";
 import { registrarAnticipo } from "../db/anticipo.js";
 import { cancelarPedido } from "../db/cancelarPedido.js";
 import { obtenerPedidoActivo } from "../db/validarPedidoActivo.js";
@@ -17,21 +16,17 @@ import { obtenerSaludoColombia } from "../utils/saludos.js";
 
 
 
-
-
 import {
-  estadoPedidoTemplate,
-  seleccionarPedidoEstado
-} from "../utils/messageTemplates.js";
-
-
-import {
-  pedirDatoSaldo,
+  menuPrincipal,
   saldoNoEncontrado,
+  pedirDatoSaldo,
   saldoUnPedido,
   seleccionarPedidoSaldo,
-  menuPrincipal
+  seleccionarPedidoEstado,
+  estadoPedidoTemplate,
+  infoMediosPago
 } from "../utils/messageTemplates.js";
+
 
 import { sendMessage } from "./whatsappSender.js";
 import {
@@ -96,6 +91,7 @@ export const handleMessage = async (req, res) => {
 const saludos = [
   "hola",
   "holi",
+  "hla",
   "buenas",
   "buen día",
   "buen dia",
@@ -632,7 +628,7 @@ if (global.estadoCotizacion?.[from]) {
       await enviar(from, {
         text: {
           body: "⏳ Sobre los tiempos de entrega\n\n" +
-                "El tiempo estimado de fabricación y entrega es de *hasta 15 días calendario* desde la confirmación del anticipo.\n\n" +
+                "El tiempo estimado de fabricación y entrega es de *hasta 15 días habiles* desde la confirmación del anticipo.\n\n" +
                 "Este tiempo puede variar según el tipo de trabajo y la carga del taller, y en muchos casos el pedido puede estar listo antes.\n\n" +
                 "Cuando tu pedido esté terminado, te contactaremos para coordinar la entrega o instalación.😊\n\n" +
                 "Gracias por confiar en *Muebles Nico* 🙌"

@@ -36,7 +36,7 @@ export const saldoNoEncontrado = () => ({
   text: {
     body:
       "No encontré pedidos activos asociados a este número 😕\n\n" +
-      "Si quieres, escribe *MENU* y miramos qué más puedo ayudarte."
+      "Si quieres, escribe *Menu* y miramos qué más puedo ayudarte."
   }
 });
 
@@ -141,12 +141,11 @@ export const estadoPedidoTemplate = (pedido) => ({
       `Así va tu pedido 😊\n\n` +
       `🆔 *Pedido:* ${pedido.order_code}\n` +
       `📌 *Estado:* ${textoEstadoPedido(pedido.estado_pedido)}\n` +
-      `📅 *Entrega estimada:* ${
-        pedido.fecha_aprox_entrega
-          ? formatearFecha(pedido.fecha_aprox_entrega)
-          : "Por definir"
+      `📅 *Entrega estimada:* ${pedido.fecha_aprox_entrega
+        ? formatearFecha(pedido.fecha_aprox_entrega)
+        : "Por definir"
       }\n\n` +
-      `Si necesitas algo más, escribe *MENU*.`
+      `Si necesitas algo más, escribe *Menu*.`
   }
 });
 
