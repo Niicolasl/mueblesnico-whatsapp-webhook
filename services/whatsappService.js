@@ -245,7 +245,7 @@ await enviar(from, {
 
     }
 
-    iif(esAdmin && adminState[from]?.step === "confirmar_cancelacion") {
+    if(esAdmin && adminState[from]?.step === "confirmar_cancelacion") {
       const respuesta = inputLower;
       const pedido = adminState[from].pedido;
 
