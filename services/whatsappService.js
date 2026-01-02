@@ -207,23 +207,60 @@ await enviar(from, {
     if (esAdmin && adminState[from]?.step === "cancelar_codigo") {
       const orderCode = input.toUpperCase();
 
-      const result = await cancelarPedido(orderCode);
+      const validacion = await obtenerPedidoActivo(orderCode);
 
-      if (result === null) {
+      if (validacion.error === "NO_EXISTE") {
         await enviar(from, {
-          text: {
-            body: "⚠️ El pedido no existe o ya estaba cancelado."
-          }
+          text: { body: "❌ Ese pedido no existe." }
         });
         delete adminState[from];
         return res.sendStatus(200);
       }
 
-      if (result === "error") {
+      if (validacion.error === "CANCELADO") {
         await enviar(from, {
-          text: {
-            body: "❌ Ocurrió un error al cancelar el pedido."
-          }
+          text: { body: "⚠️ Este pedido ya está cancelado." }
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
+
+      // guardamos pedido para confirmar
+      adminState[from] = {
+        step: "cancelar_confirmacion",
+        orderCode
+      };
+
+      await enviar(from, {
+        text: {
+          body:
+            "⚠️ *Confirma la cancelación*\n\n" +
+            `Pedido: *${validacion.order_code}*\n` +
+            `Trabajo: ${validacion.descripcion}\n\n` +
+            "Escribe *SI* para confirmar o *NO* para cancelar la acción."
+        }
+      });
+
+      return res.sendStatus(200);
+    }
+
+    if (esAdmin && adminState[from]?.step === "cancelar_confirmacion") {
+      const respuesta = inputLower;
+
+      if (respuesta !== "si" && respuesta !== "sí") {
+        await enviar(from, {
+          text: { body: "❎ Cancelación abortada." }
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
+
+      const orderCode = adminState[from].orderCode;
+      const result = await cancelarPedido(orderCode);
+
+      if (!result || result === "error") {
+        await enviar(from, {
+          text: { body: "❌ Ocurrió un error al cancelar el pedido." }
         });
         delete adminState[from];
         return res.sendStatus(200);
@@ -232,14 +269,15 @@ await enviar(from, {
       await enviar(from, {
         text: {
           body:
-            `❌ *Pedido cancelado*\n\n` +
-            `Pedido: ${result.order_code}`
+            `❌ *Pedido cancelado correctamente*\n\n` +
+            `Pedido: ${orderCode}`
         }
       });
 
       delete adminState[from];
       return res.sendStatus(200);
     }
+
 
     // =====================================================
     // =====================================================
