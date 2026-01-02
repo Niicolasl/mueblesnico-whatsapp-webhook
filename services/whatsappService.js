@@ -126,7 +126,7 @@ if (
 await enviar(from, {
   text: {
     body:
-      "Dime qué necesitas y con gusto te ayudo o si prefieres, escribe *Menu* para ver todas las opciones.\n\n"
+      "Escribe *Menu* para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo.\n\n"
   }
 });
 ;
@@ -236,7 +236,7 @@ await enviar(from, {
           body:
             "⚠️ *Confirma la cancelación*\n\n" +
             `Pedido: *${validacion.order_code}*\n` +
-            `Trabajo: ${validacion.descripcion}\n\n` +
+            `Trabajo: ${validacion.descripcion_trabajo ?? "No especificado"}\n\n` +
             "Escribe *SI* para confirmar o *NO* para cancelar la acción."
         }
       });
@@ -524,11 +524,11 @@ if (global.estadoCotizacion?.[from]) {
         text: {
           body:
             "🔹 *Fabricar mueble nuevo*\n\n" +
-            "Cuéntanos qué mueble tienes en mente 😊\n" +
-            "Si ya tienes una idea clara, puedes enviarnos:\n" +
+            "Cuéntame qué mueble tienes en mente 😊\n" +
+            "Si ya tienes una idea clara, puedes enviarme:\n" +
             "• Fotos o referencias\n" +
             "• Medidas aproximadas (si las sabes)\n\n" +
-            "Si aún no estás seguro, también podemos asesorarte."
+            "Si aún no estás segur@, también podemos asesorarte."
         }
       });
 
@@ -542,10 +542,10 @@ if (global.estadoCotizacion?.[from]) {
         text: {
           body:
             "🔹 *Restaurar o tapizar*\n\n" +
-            "Envíanos por favor:\n" +
+            "Envíame por favor:\n" +
             "• Fotos actuales del mueble\n" +
             "• Qué te gustaría cambiar o mejorar\n\n" +
-            "Con eso podremos darte una cotización."
+            "Con eso podre darte una cotización."
         }
       });
 
@@ -559,9 +559,9 @@ if (global.estadoCotizacion?.[from]) {
       text: {
         body:
           "🔹 *Otro arreglo*\n\n" +
-          "Cuéntanos qué necesitas hacer y, si es posible,\n" +
-          "envíanos una foto del área o mueble a intervenir.\n\n" +
-          "Con esa información te indicamos el valor y tiempos."
+          "Cuéntame qué necesitas hacer y, si es posible,\n" +
+          "envíame una foto del área o mueble a intervenir.\n\n" +
+          "Con esa información te podre indicar el valor y tiempos."
       }
     });
 
