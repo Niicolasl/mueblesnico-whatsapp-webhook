@@ -235,8 +235,8 @@ await enviar(from, {
         text: {
           body:
             "⚠️ *Confirma la cancelación*\n\n" +
-            `Pedido: *${validacion.order_code}*\n` +
-            `Trabajo: ${validacion.descripcion_trabajo ?? "No especificado"}\n\n` +
+            `Pedido: *${pedido.order_code}*\n` +
+            `Trabajo: ${pedido.descripcion_trabajo}\n\n` +
             "Escribe *SI* para confirmar o *NO* para cancelar la acción."
         }
       });
