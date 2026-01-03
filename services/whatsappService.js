@@ -1,11 +1,13 @@
-// Flujos
 import {
   startNewOrderFlow,
   handleNewOrderStep,
   newOrderState,
 } from "../flows/newOrderFlow.js";
 
-// Servicios / DB
+// ⏱️ Timers de cotización (por cliente)
+global.cotizacionTimers = global.cotizacionTimers || {};
+global.estadoCotizacion = global.estadoCotizacion || {};
+
 import { consultarPedido } from "./orderService.js";
 import { consultarSaldo } from "../db/consultarSaldo.js";
 import { registrarAnticipo } from "../db/anticipo.js";
@@ -13,9 +15,8 @@ import { cancelarPedido } from "../db/cancelarPedido.js";
 import { obtenerPedidoActivo } from "../db/validarPedidoActivo.js";
 import { actualizarEstadoPedido } from "../db/actualizarEstadoPedido.js";
 import { getPedidosByPhone } from "../db/orders.js";
-
-// Utils
 import { obtenerSaludoColombia } from "../utils/saludos.js";
+
 import {
   menuPrincipal,
   saldoNoEncontrado,
@@ -30,26 +31,10 @@ import {
 import { sendMessage } from "./whatsappSender.js";
 import { normalizarTelefono, telefonoParaWhatsApp } from "../utils/phone.js";
 
-// =====================================================
-// ⚙️ CONFIGURACIÓN / CONSTANTES
-// =====================================================
-
 const ADMINS = ["3204128555", "3125906313"];
 const adminState = {};
 
-// =====================================================
-// 🌍 ESTADOS GLOBALES
-// =====================================================
-
-// ⏱️ Timers de cotización (por cliente)
-global.cotizacionTimers = global.cotizacionTimers || {};
-global.estadoCotizacion = global.estadoCotizacion || {};
-
-// =====================================================
-// 🛠️ HELPERS
-// =====================================================
-
-// 🔧 Helper de envío
+// 🔧 Helper envío
 const enviar = async (to, payload) => {
   const toWhatsapp = telefonoParaWhatsApp(to);
 
@@ -349,11 +334,10 @@ export const handleMessage = async (req, res) => {
       if (pedido.estado_pedido === "ENTREGADO") {
         mensaje =
           `Hola 🙌\n\n` +
-          `Te confirmamos que tu pedido *${pedido.order_code}* ya fue entregado correctamente ✅ ` +
-          `Gracias por permitirnos ser parte de tu espacio 💛\n\n` +
-          `Si necesitas algo más, aquí estamos.`;
+          `Quería avisarte que tu pedido *${pedido.order_code}* ` +
+          `ya fue entregado con éxito ✅\n\n` +
+          `Gracias por confiar en nosotros.`;
       }
-
 
       if (!mensaje) return;
 
