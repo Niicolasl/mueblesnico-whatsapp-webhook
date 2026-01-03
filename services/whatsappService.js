@@ -7,6 +7,34 @@ import {
 // ⏱️ Timers de cotización (por cliente)
 global.cotizacionTimers = global.cotizacionTimers || {};
 
+const programarMensajeAsesor = async (from) => {
+  // si ya existe un timer, lo cancelamos
+  if (global.cotizacionTimers[from]) {
+    clearTimeout(global.cotizacionTimers[from]);
+  }
+
+  global.cotizacionTimers[from] = setTimeout(async () => {
+    await enviar(from, {
+      text: {
+        body:
+          "Gracias 😊\n\n" +
+          "Ya tenemos toda la información. " +
+          "En un momento un asesor se contactará contigo para ayudarte con la cotización.",
+      },
+    });
+
+    // limpiamos timer
+    delete global.cotizacionTimers[from];
+  }, 1 * 60 * 1000); // 5 minutos
+};
+
+// ✋ Si el cliente vuelve a escribir, cancelamos mensaje pendiente
+if (global.cotizacionTimers?.[from]) {
+  clearTimeout(global.cotizacionTimers[from]);
+  delete global.cotizacionTimers[from];
+}
+
+
 import { consultarPedido } from "./orderService.js";
 import { consultarSaldo } from "../db/consultarSaldo.js";
 import { registrarAnticipo } from "../db/anticipo.js";
@@ -573,27 +601,6 @@ export const handleMessage = async (req, res) => {
 
       return res.sendStatus(200);
     }
-
-    const programarMensajeAsesor = async (from) => {
-      // si ya existe un timer, lo cancelamos
-      if (global.cotizacionTimers[from]) {
-        clearTimeout(global.cotizacionTimers[from]);
-      }
-
-      global.cotizacionTimers[from] = setTimeout(async () => {
-        await enviar(from, {
-          text: {
-            body:
-              "Gracias 😊\n\n" +
-              "Ya tenemos toda la información. " +
-              "En un momento un asesor se contactará contigo para ayudarte con la cotización.",
-          },
-        });
-
-        // limpiamos timer
-        delete global.cotizacionTimers[from];
-      }, 5 * 60 * 1000); // 5 minutos
-    };
 
     // =====================================================
     // 🧠 RESPUESTAS DEL FLUJO DE COTIZACIÓN
