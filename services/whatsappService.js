@@ -67,7 +67,7 @@ const programarMensajeAsesor = async (from) => {
 
     // limpiamos timer
     delete global.cotizacionTimers[from];
-  }, 13 * 1000); // ⏱️ 30s (testing)
+  }, 13 * 1000); // ⏱️ 13sg
 };
 
 // =====================================================
