@@ -160,7 +160,13 @@ export async function getPedidosByPhone(telefono) {
         `
     SELECT *
     FROM orders
-    WHERE numero_whatsapp = $1 AND cancelado = false
+    WHERE
+      numero_whatsapp = $1
+      AND cancelado = false
+      AND NOT (
+        estado_pedido = 'ENTREGADO'
+        AND saldo_pendiente = 0
+      )
     ORDER BY id DESC
     `,
         [clean]
@@ -168,3 +174,4 @@ export async function getPedidosByPhone(telefono) {
 
     return rows;
 }
+

@@ -761,6 +761,18 @@ if (global.estadoCotizacion?.[from]) {
         });
         return res.sendStatus(200);
       }
+      
+      if (Number(pedido.saldo_pendiente) === 0) {
+        await enviar(from, {
+          text: {
+            body:
+              "💚 Este pedido ya fue pagado en su totalidad.\n\n" +
+              "Gracias por confiar en nosotros 🙌"
+          }
+        });
+        return res.sendStatus(200);
+      }
+
 
       await enviar(from, saldoUnPedido(pedido));
       return res.sendStatus(200);
@@ -793,7 +805,16 @@ if (global.estadoCotizacion?.[from]) {
         });
         return res.sendStatus(200);
       }
-
+      if (pedido.estado_pedido === "ENTREGADO") {
+        await enviar(from, {
+          text: {
+            body:
+              "✅ Este pedido ya fue entregado 🙌\n\n" +
+              "Si necesitas algo más o tienes alguna duda, escríbeme con confianza 😊"
+          }
+        });
+        return res.sendStatus(200);
+      }
       await enviar(from, estadoPedidoTemplate(pedido));
       return res.sendStatus(200);
     }
