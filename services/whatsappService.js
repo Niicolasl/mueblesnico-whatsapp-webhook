@@ -429,16 +429,34 @@ await enviar(from, {
         return res.sendStatus(200);
       }
 
+      const pedido = validacion.pedido;
+
+      // ✅ VALIDACIÓN CLAVE: ya está pagado
+      if (Number(pedido.saldo_pendiente) <= 0) {
+        await enviar(from, {
+          text: {
+            body:
+              "✅ Este pedido ya se encuentra *completamente pagado*.\n\n" +
+              "No es posible registrar más anticipos."
+          }
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
+
       adminState[from].orderCode = codigo;
       adminState[from].step = "anticipo_valor";
 
       await enviar(from, {
-        text: { body: "💵 Ingresa el *valor abonado*" }
+        text: {
+          body:
+            `💵 Ingresa el *valor abonado*\n\n` +
+            `Saldo pendiente: $${Number(pedido.saldo_pendiente).toLocaleString()}`
+        }
       });
 
       return res.sendStatus(200);
     }
-
 
     if (esAdmin && adminState[from]?.step === "anticipo_valor") {
       const valor = Number(input.replace(/[^\d]/g, ""));
@@ -457,6 +475,7 @@ await enviar(from, {
         valor
       );
 
+      // ❌ Excede saldo
       if (result?.error === "EXCEDE_SALDO") {
         await enviar(from, {
           text: {
@@ -468,17 +487,16 @@ await enviar(from, {
         return res.sendStatus(200);
       }
 
+      // ✅ Ya estaba pagado (corte total del flujo)
       if (result?.error === "PAGADO") {
         await enviar(from, {
           text: {
             body: "✅ Este pedido ya se encuentra completamente pagado."
           }
         });
+        delete adminState[from];
         return res.sendStatus(200);
       }
-
-
-      delete adminState[from];
 
       if (!result) {
         await enviar(from, {
@@ -486,8 +504,12 @@ await enviar(from, {
             body: "❌ No se pudo registrar el anticipo. Verifica el código."
           }
         });
+        delete adminState[from];
         return res.sendStatus(200);
       }
+
+      
+      delete adminState[from];
 
       // ✅ Mensaje al ADMIN
       await enviar(from, {
