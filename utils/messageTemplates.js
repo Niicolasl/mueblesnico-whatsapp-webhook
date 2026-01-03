@@ -179,6 +179,8 @@ export const textoEstadoPedido = (estado) => {
     case "cancelado":
     case "CANCELADO":
       return "❌ Cancelado";
+    case "LISTO":
+      return "✅ Listo para entrega";
     default:
       return estado;
   }
