@@ -82,7 +82,7 @@ const programarMensajeAsesor = async (from) => {
 
     // limpiamos timer
     delete global.cotizacionTimers[from];
-  }, 30 * 1000); // ⏱️ 30s (testing)
+  }, 13 * 1000); // ⏱️ 30s (testing)
 };
 
 // =====================================================
@@ -704,13 +704,26 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // 🟢 Un solo pedido → estado directo
+      // 🟢 UN SOLO PEDIDO
       if (pedidos.length === 1) {
-        await enviar(from, estadoPedidoTemplate(pedidos[0]));
+        const pedido = pedidos[0];
+
+        if (pedido.estado_pedido === "ENTREGADO") {
+          await enviar(from, {
+            text: {
+              body:
+                "✅ Este pedido ya fue entregado 🙌\n\n" +
+                "Si necesitas algo más o tienes alguna duda, escríbeme con confianza 😊",
+            },
+          });
+          return res.sendStatus(200);
+        }
+
+        await enviar(from, estadoPedidoTemplate(pedido));
         return res.sendStatus(200);
       }
 
-      // 🟢 Varios pedidos → lista
+      // 🟢 VARIOS PEDIDOS
       await enviar(from, seleccionarPedidoEstado(pedidos));
       return res.sendStatus(200);
     }
@@ -718,7 +731,7 @@ export const handleMessage = async (req, res) => {
     if (input === "SALDO") {
       const pedidos = await consultarSaldo(from);
 
-      if (pedidos?.error || !Array.isArray(pedidos)) {
+      if (pedidos?.error || !Array.isArray(pedidos) || pedidos.length === 0) {
         await enviar(from, {
           text: {
             body: "📭 No encontramos pedidos activos asociados a este número.",
@@ -727,16 +740,30 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // 🟢 Un solo pedido → mensaje directo
+      // 🟢 UN SOLO PEDIDO
       if (pedidos.length === 1) {
-        await enviar(from, saldoUnPedido(pedidos[0]));
+        const pedido = pedidos[0];
+
+        if (Number(pedido.saldo) === 0) {
+          await enviar(from, {
+            text: {
+              body:
+                "💚 Este pedido ya fue pagado en su totalidad.\n\n" +
+                "Gracias por confiar en nosotros 🙌",
+            },
+          });
+          return res.sendStatus(200);
+        }
+
+        await enviar(from, saldoUnPedido(pedido));
         return res.sendStatus(200);
       }
 
-      // 🟢 Varios pedidos → lista
+      // 🟢 VARIOS PEDIDOS
       await enviar(from, seleccionarPedidoSaldo(pedidos));
       return res.sendStatus(200);
     }
+
 
     // =====================================================
     // 💵 CLIENTE: ABONAR PEDIDO

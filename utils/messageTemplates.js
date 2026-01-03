@@ -181,6 +181,8 @@ export const textoEstadoPedido = (estado) => {
       return "❌ Cancelado";
     case "LISTO":
       return "✅ Listo para entrega";
+    case "en_fabricacion":
+      return "🛠️ En fabricación";
     default:
       return estado;
   }

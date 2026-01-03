@@ -16,7 +16,6 @@ export const consultarSaldo = async (input) => {
         FROM orders
         WHERE id = $1
           AND cancelado = false
-          AND (valor_total - valor_abonado) > 0
       `;
       values = [Number(limpio)];
     }
@@ -28,7 +27,6 @@ export const consultarSaldo = async (input) => {
         FROM orders
         WHERE order_code = $1
           AND cancelado = false
-          AND (valor_total - valor_abonado) > 0
       `;
       values = [limpio.toUpperCase()];
     }
@@ -42,7 +40,6 @@ export const consultarSaldo = async (input) => {
         FROM orders
         WHERE numero_whatsapp = $1
           AND cancelado = false
-          AND (valor_total - valor_abonado) > 0
         ORDER BY id DESC
       `;
       values = [telefono];
@@ -53,7 +50,7 @@ export const consultarSaldo = async (input) => {
       return {
         error: true,
         message:
-          "Formato no válido. Usa el ID, el código del pedido (MN-AAAA-XXXX) o tu número de WhatsApp."
+          "Formato no válido. Usa el ID, el código del pedido (MN-AAAA-XXXX) o tu número de WhatsApp.",
       };
     }
 
@@ -62,7 +59,7 @@ export const consultarSaldo = async (input) => {
     if (rows.length === 0) {
       return {
         error: true,
-        message: "No encontramos pedidos con saldo pendiente."
+        message: "No encontramos pedidos asociados a este número.",
       };
     }
 
@@ -77,14 +74,15 @@ export const consultarSaldo = async (input) => {
         descripcion: order.descripcion_trabajo,
         total,
         anticipo,
-        saldo: total - anticipo
+        saldo: total - anticipo,
       };
     });
   } catch (error) {
     console.error("❌ Error consultando saldo:", error);
     return {
       error: true,
-      message: "Hubo un error consultando el saldo. Intenta más tarde."
+      message: "Hubo un error consultando el saldo. Intenta más tarde.",
     };
   }
 };
+
