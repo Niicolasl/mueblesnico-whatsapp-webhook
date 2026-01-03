@@ -269,6 +269,23 @@ await enviar(from, {
           }
         });
 
+        // ✅ Avisar al CLIENTE automáticamente
+        if (result.numero_whatsapp) {
+          await enviar(result.numero_whatsapp, {
+            text: {
+              body:
+                "Hola 😊\n\n" +
+                `Queremos informarte que tu pedido *${result.order_code}* ` +
+                "ha sido cancelado.\n\n" +
+                (result.descripcion_trabajo
+                  ? `🛠️ Trabajo: ${result.descripcion_trabajo}\n\n`
+                  : "") +
+                "Si tienes alguna duda o deseas retomarlo, escríbenos y con gusto te ayudamos 🤝"
+            }
+          });
+        }
+
+
         delete adminState[from];
         return res.sendStatus(200);
       }
@@ -282,6 +299,34 @@ await enviar(from, {
       return res.sendStatus(200);
     }
 
+    // =====================================================
+    // 🟩 NOTIFICACIONES CLIENTE
+    // =====================================================
+
+    async function notificarCambioEstado(pedido, enviar) {
+      let mensaje = null;
+
+      if (pedido.estado_pedido === "LISTO") {
+        mensaje =
+          `Hola 😊\n\n` +
+          `Tu pedido *${pedido.order_code}* ya está listo 🎉\n` +
+          `Cuando quieras, escríbeme y coordinamos la entrega.`;
+      }
+
+      if (pedido.estado_pedido === "ENTREGADO") {
+        mensaje =
+          `Hola 🙌\n\n` +
+          `Quería avisarte que tu pedido *${pedido.order_code}* ` +
+          `ya fue entregado con éxito ✅\n\n` +
+          `Gracias por confiar en nosotros.`;
+      }
+
+      if (!mensaje) return;
+
+      await enviar(pedido.numero_whatsapp, {
+        text: { body: mensaje }
+      });
+    }
 
 
     // =====================================================
@@ -289,8 +334,8 @@ await enviar(from, {
     // 🟩 ADMIN: CAMBIO DE ESTADO MANUAL (ÚNICO)
     // =====================================================
 
-    const comandosEstado = {
-      "/panticipo": "PENDIENTE_ANTICIPO",
+    const comandosEstado = { 
+      "/panticipo": "PENDIENTE_ANTICIPO", //no esta en uso
       "/listo": "LISTO",
       "/entregado": "ENTREGADO"
     };
@@ -330,6 +375,8 @@ await enviar(from, {
 
       const pedido = await actualizarEstadoPedido(orderCode, nuevoEstado);
 
+      await notificarCambioEstado(pedido, enviar);
+      
       delete adminState[from];
 
       await enviar(from, {
@@ -343,6 +390,7 @@ await enviar(from, {
 
       return res.sendStatus(200);
     }
+    
 
     // =====================================================
     // 🟩 ADMIN: ANTICIPO
