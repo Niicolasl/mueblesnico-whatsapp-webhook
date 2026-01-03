@@ -6,6 +6,8 @@ import {
 
 // ⏱️ Timers de cotización (por cliente)
 global.cotizacionTimers = global.cotizacionTimers || {};
+global.estadoCotizacion = global.estadoCotizacion || {};
+
 
 const programarMensajeAsesor = async (from) => {
   // si ya existe un timer, lo cancelamos
@@ -27,13 +29,6 @@ const programarMensajeAsesor = async (from) => {
     delete global.cotizacionTimers[from];
   }, 1 * 60 * 1000); // 5 minutos
 };
-
-// ✋ Si el cliente vuelve a escribir, cancelamos mensaje pendiente
-if (global.cotizacionTimers?.[from]) {
-  clearTimeout(global.cotizacionTimers[from]);
-  delete global.cotizacionTimers[from];
-}
-
 
 import { consultarPedido } from "./orderService.js";
 import { consultarSaldo } from "../db/consultarSaldo.js";
@@ -85,6 +80,12 @@ export const handleMessage = async (req, res) => {
 
     // 📞 Número entrante normalizado (SIN 57)
     const from = normalizarTelefono(message.from);
+
+    // ✋ Si el cliente vuelve a escribir, cancelamos mensaje pendiente
+    if (global.cotizacionTimers?.[from]) {
+      clearTimeout(global.cotizacionTimers[from]);
+      delete global.cotizacionTimers[from];
+    }
 
     let text = message.text?.body?.trim() || "";
     let interactiveId = null;
