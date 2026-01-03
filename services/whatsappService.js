@@ -27,7 +27,7 @@ const programarMensajeAsesor = async (from) => {
 
     // limpiamos timer
     delete global.cotizacionTimers[from];
-  }, 1 * 60 * 1000); // 5 minutos
+  }, 30 * 1000); // 5 minutos
 };
 
 import { consultarPedido } from "./orderService.js";
@@ -81,8 +81,8 @@ export const handleMessage = async (req, res) => {
     // 📞 Número entrante normalizado (SIN 57)
     const from = normalizarTelefono(message.from);
 
-    // ✋ Si el cliente vuelve a escribir, cancelamos mensaje pendiente
-    if (global.cotizacionTimers?.[from]) {
+    // ✋ Cancelamos SOLO si el cliente sigue en el flujo de cotización
+    if (global.estadoCotizacion?.[from] && global.cotizacionTimers?.[from]) {
       clearTimeout(global.cotizacionTimers[from]);
       delete global.cotizacionTimers[from];
     }
