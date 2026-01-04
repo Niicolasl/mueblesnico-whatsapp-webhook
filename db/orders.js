@@ -1,5 +1,6 @@
 import { pool } from "./init.js";
 import { normalizarTelefono } from "../utils/phone.js";
+import { obtenerPedidoActivo } from "./validarPedidoActivo.js";
 
 /************************************************
  * GENERAR CÓDIGO DE PEDIDO (MN-AAAA-XXXX)
@@ -146,32 +147,44 @@ export async function cancelarPedido(order_code) {
  * CONSULTAS
  ************************************************/
 export async function getOrder(order_code) {
-    const { rows } = await pool.query(
-        "SELECT * FROM orders WHERE order_code = $1",
-        [order_code]
-    );
-    return rows[0] || null;
+  const { rows } = await pool.query(
+    "SELECT * FROM orders WHERE order_code = $1",
+    [order_code]
+  );
+
+  return rows[0] || null;
 }
 
+/************************************************
+ * PEDIDOS ACTIVOS POR TELÉFONO
+ ************************************************/
 export async function getPedidosByPhone(telefono) {
-    const clean = normalizarTelefono(telefono);
+  const clean = normalizarTelefono(telefono);
 
-    const { rows } = await pool.query(
-        `
+  const { rows } = await pool.query(
+    `
     SELECT *
     FROM orders
-    WHERE
-      numero_whatsapp = $1
+    WHERE numero_whatsapp = $1
       AND cancelado = false
-      AND NOT (
-        estado_pedido = 'ENTREGADO'
-        AND saldo_pendiente = 0
-      )
     ORDER BY id DESC
     `,
-        [clean]
-    );
+    [clean]
+  );
 
-    return rows;
+  if (!rows.length) return [];
+
+  // 🔍 Filtramos con la lógica centralizada
+  const pedidosActivos = [];
+
+  for (const pedido of rows) {
+    const validacion = await obtenerPedidoActivo(pedido.order_code);
+
+    if (!validacion.error) {
+      pedidosActivos.push(validacion.pedido);
+    }
+  }
+
+  return pedidosActivos;
 }
 

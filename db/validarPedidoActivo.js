@@ -1,20 +1,38 @@
 import { pool } from "./init.js";
 
 export async function obtenerPedidoActivo(orderCode) {
-    const result = await pool.query(
-        `SELECT * FROM orders WHERE order_code = $1`,
-        [orderCode]
-    );
+  const result = await pool.query(
+    `SELECT *
+     FROM orders
+     WHERE order_code = $1`,
+    [orderCode]
+  );
 
-    if (result.rows.length === 0) {
-        return { error: "NO_EXISTE" };
-    }
+  if (result.rows.length === 0) {
+    return { error: "NO_EXISTE" };
+  }
 
-    const pedido = result.rows[0];
+  const pedido = result.rows[0];
 
-    if (pedido.cancelado || pedido.estado_pedido === "CANCELADO") {
-        return { error: "CANCELADO", pedido };
-    }
+  // ❌ Cancelado
+  if (pedido.cancelado || pedido.estado_pedido === "CANCELADO") {
+    return { error: "CANCELADO", pedido };
+  }
 
-    return { pedido };
+  const total = Number(pedido.valor_total || 0);
+  const abonado = Number(pedido.valor_abonado || 0);
+  const saldo = total - abonado;
+
+  // ❌ Entregado + saldo 0 → finalizado
+  if (pedido.estado_pedido === "ENTREGADO" && saldo === 0) {
+    return { error: "FINALIZADO", pedido };
+  }
+
+  // ✅ Pedido activo
+  return {
+    pedido: {
+      ...pedido,
+      saldo,
+    },
+  };
 }

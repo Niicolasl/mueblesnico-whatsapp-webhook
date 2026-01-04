@@ -334,9 +334,9 @@ export const handleMessage = async (req, res) => {
       if (pedido.estado_pedido === "ENTREGADO") {
         mensaje =
           `Hola 🙌\n\n` +
-          `Quería avisarte que tu pedido *${pedido.order_code}* ` +
-          `ya fue entregado con éxito ✅\n\n` +
-          `Gracias por confiar en nosotros.`;
+          `Quería avisarte que tu pedido *${pedido.order_code}* ya fue entregado con éxito ✅ ` +
+          `Gracias por confiar en nosotros.\n\n` +
+          `Si necesitas algo más, aquí estamos.`;
       }
 
       if (!mensaje) return;
@@ -676,6 +676,9 @@ export const handleMessage = async (req, res) => {
       }
     }
 
+    // =====================================================
+    // 📦 CLIENTE: ESTADO DE PEDIDO
+    // =====================================================
     if (input === "PEDIDO") {
       const pedidos = await getPedidosByPhone(from);
 
@@ -688,30 +691,20 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // 🟢 UN SOLO PEDIDO
+      // 🟢 UN SOLO PEDIDO → mostrar estado directo
       if (pedidos.length === 1) {
-        const pedido = pedidos[0];
-
-        if (pedido.estado_pedido === "ENTREGADO") {
-          await enviar(from, {
-            text: {
-              body:
-                "✅ Este pedido ya fue entregado 🙌\n\n" +
-                "Si necesitas algo más o tienes alguna duda, escríbeme con confianza 😊",
-            },
-          });
-          return res.sendStatus(200);
-        }
-
-        await enviar(from, estadoPedidoTemplate(pedido));
+        await enviar(from, estadoPedidoTemplate(pedidos[0]));
         return res.sendStatus(200);
       }
 
-      // 🟢 VARIOS PEDIDOS
+      // 🟢 VARIOS PEDIDOS → selector
       await enviar(from, seleccionarPedidoEstado(pedidos));
       return res.sendStatus(200);
     }
 
+    // =====================================================
+    // 💰 CLIENTE: SALDO
+    // =====================================================
     if (input === "SALDO") {
       const pedidos = await consultarSaldo(from);
 
@@ -733,7 +726,7 @@ export const handleMessage = async (req, res) => {
             text: {
               body:
                 "💚 Este pedido ya fue pagado en su totalidad.\n\n" +
-                "Gracias por confiar en nosotros 🙌",
+                "Actualmente se encuentra en proceso o pendiente de entrega 🙌",
             },
           });
           return res.sendStatus(200);
@@ -747,7 +740,6 @@ export const handleMessage = async (req, res) => {
       await enviar(from, seleccionarPedidoSaldo(pedidos));
       return res.sendStatus(200);
     }
-
 
     // =====================================================
     // 💵 CLIENTE: ABONAR PEDIDO
@@ -802,9 +794,7 @@ export const handleMessage = async (req, res) => {
     if (typeof input === "string" && input.startsWith("SALDO_")) {
       const id = input.replace("SALDO_", "").trim();
 
-      if (!/^\d+$/.test(id)) {
-        return res.sendStatus(200);
-      }
+      if (!/^\d+$/.test(id)) return res.sendStatus(200);
 
       const pedidos = await consultarSaldo(from);
 
@@ -826,12 +816,12 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      if (Number(pedido.saldo_pendiente) === 0) {
+      if (Number(pedido.saldo) === 0) {
         await enviar(from, {
           text: {
             body:
               "💚 Este pedido ya fue pagado en su totalidad.\n\n" +
-              "Gracias por confiar en nosotros 🙌",
+              "Actualmente se encuentra en proceso o pendiente de entrega 🙌",
           },
         });
         return res.sendStatus(200);
@@ -847,9 +837,7 @@ export const handleMessage = async (req, res) => {
     if (typeof input === "string" && input.startsWith("PEDIDO_")) {
       const id = input.replace("PEDIDO_", "").trim();
 
-      if (!/^\d+$/.test(id)) {
-        return res.sendStatus(200);
-      }
+      if (!/^\d+$/.test(id)) return res.sendStatus(200);
 
       const pedidos = await getPedidosByPhone(from);
 
@@ -870,20 +858,11 @@ export const handleMessage = async (req, res) => {
         });
         return res.sendStatus(200);
       }
-      if (pedido.estado_pedido === "ENTREGADO") {
-        await enviar(from, {
-          text: {
-            body:
-              "✅ Este pedido ya fue entregado 🙌\n\n" +
-              "Si necesitas algo más o tienes alguna duda, escríbeme con confianza 😊",
-          },
-        });
-        return res.sendStatus(200);
-      }
+
       await enviar(from, estadoPedidoTemplate(pedido));
       return res.sendStatus(200);
     }
-
+    
     return res.sendStatus(200);
   } catch (err) {
     console.error("❌ Error:", err);
