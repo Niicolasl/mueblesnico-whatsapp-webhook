@@ -466,7 +466,7 @@ export const handleMessage = async (req, res) => {
       await enviar(from, {
         text: {
           body:
-            `💵 Ingresa el *valor abonado*\n\n` +
+            `💵 Ingresa el *valor abonado*\n` +
             `Saldo pendiente: $${Number(
               pedido.saldo_pendiente
             ).toLocaleString()}`,
@@ -862,7 +862,7 @@ export const handleMessage = async (req, res) => {
       await enviar(from, estadoPedidoTemplate(pedido));
       return res.sendStatus(200);
     }
-    
+
     return res.sendStatus(200);
   } catch (err) {
     console.error("❌ Error:", err);

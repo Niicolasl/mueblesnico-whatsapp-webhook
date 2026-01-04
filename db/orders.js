@@ -163,28 +163,22 @@ export async function getPedidosByPhone(telefono) {
 
   const { rows } = await pool.query(
     `
-    SELECT *
+    SELECT *,
+           (valor_total - COALESCE(valor_abonado, 0)) AS saldo
     FROM orders
     WHERE numero_whatsapp = $1
       AND cancelado = false
+      AND estado_pedido <> 'CANCELADO'
+      AND NOT (
+        estado_pedido = 'ENTREGADO'
+        AND (valor_total - COALESCE(valor_abonado, 0)) = 0
+      )
     ORDER BY id DESC
     `,
     [clean]
   );
 
-  if (!rows.length) return [];
-
-  // 🔍 Filtramos con la lógica centralizada
-  const pedidosActivos = [];
-
-  for (const pedido of rows) {
-    const validacion = await obtenerPedidoActivo(pedido.order_code);
-
-    if (!validacion.error) {
-      pedidosActivos.push(validacion.pedido);
-    }
-  }
-
-  return pedidosActivos;
+  return rows || [];
 }
+
 
