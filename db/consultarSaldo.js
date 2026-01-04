@@ -9,7 +9,7 @@ export const consultarSaldo = async (input) => {
 
     const limpio = input.toString().trim();
 
-    // 1️⃣ ID numérico (id del pedido)
+    // 1️⃣ ID numérico
     if (/^\d+$/.test(limpio) && limpio.length <= 6) {
       query = `
         SELECT id, order_code, descripcion_trabajo, valor_total, valor_abonado
@@ -59,11 +59,11 @@ export const consultarSaldo = async (input) => {
     if (rows.length === 0) {
       return {
         error: true,
-        message: "No encontramos pedidos asociados a este número.",
+        message: "No encontramos pedidos asociados a este dato.",
       };
     }
 
-    // ✅ Respuesta limpia
+    // ✅ Respuesta limpia (la lógica de saldo se maneja fuera)
     return rows.map((order) => {
       const total = Number(order.valor_total);
       const anticipo = Number(order.valor_abonado || 0);
