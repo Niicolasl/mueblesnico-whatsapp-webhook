@@ -22,7 +22,7 @@ export async function obtenerPedidoActivo(orderCode) {
   const saldoPendiente = Number(pedido.saldo_pendiente || 0);
 
   // ❌ Finalizado real: entregado + sin saldo
-  if (pedido.estado_pedido === "ENTREGADO" && saldoPendiente === 0) {
+  if (pedido.estado_pedido === "ENTREGADO" && saldoPendiente === 0 || pedido.estado_pedido === "pagado" && saldoPendiente === 0) {
     return { error: "FINALIZADO", pedido };
   }
 
