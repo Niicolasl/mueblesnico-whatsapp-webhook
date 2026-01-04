@@ -1,5 +1,7 @@
 import { pool } from "./init.js";
 
+import { pool } from "./init.js";
+
 export async function obtenerPedidoActivo(orderCode) {
   const result = await pool.query(
     `SELECT *
@@ -19,12 +21,10 @@ export async function obtenerPedidoActivo(orderCode) {
     return { error: "CANCELADO", pedido };
   }
 
-  const total = Number(pedido.valor_total || 0);
-  const abonado = Number(pedido.valor_abonado || 0);
-  const saldo = total - abonado;
+  const saldoPendiente = Number(pedido.saldo_pendiente || 0);
 
-  // ❌ Entregado + saldo 0 → finalizado
-  if (pedido.estado_pedido === "ENTREGADO" && saldo === 0) {
+  // ❌ Finalizado real: entregado + sin saldo
+  if (pedido.estado_pedido === "ENTREGADO" && saldoPendiente === 0) {
     return { error: "FINALIZADO", pedido };
   }
 
@@ -32,7 +32,8 @@ export async function obtenerPedidoActivo(orderCode) {
   return {
     pedido: {
       ...pedido,
-      saldo,
+      saldo: saldoPendiente,
     },
   };
 }
+
