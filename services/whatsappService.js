@@ -691,9 +691,24 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // 🟢 UN SOLO PEDIDO → mostrar estado directo
+      // 🟢 UN SOLO PEDIDO
       if (pedidos.length === 1) {
-        await enviar(from, estadoPedidoTemplate(pedidos[0]));
+        const pedido = pedidos[0];
+
+        // ✅ PEDIDO YA ENTREGADO
+        if (pedido.estado_pedido === "ENTREGADO") {
+          await enviar(from, {
+            text: {
+              body:
+                "✅ Este pedido ya fue entregado 🙌\n\n" +
+                "Si necesitas algo más o tienes alguna duda, escríbeme con confianza 😊",
+            },
+          });
+          return res.sendStatus(200);
+        }
+
+        // 📦 Pedido activo normal
+        await enviar(from, estadoPedidoTemplate(pedido));
         return res.sendStatus(200);
       }
 
@@ -859,6 +874,19 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
+      // ✅ PEDIDO YA ENTREGADO
+      if (pedido.estado_pedido === "ENTREGADO") {
+        await enviar(from, {
+          text: {
+            body:
+              "✅ Este pedido ya fue entregado 🙌\n\n" +
+              "Si necesitas algo más o tienes alguna duda, escríbeme con confianza 😊",
+          },
+        });
+        return res.sendStatus(200);
+      }
+
+      // 📦 Pedido activo normal
       await enviar(from, estadoPedidoTemplate(pedido));
       return res.sendStatus(200);
     }

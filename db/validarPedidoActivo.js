@@ -2,9 +2,11 @@ import { pool } from "./init.js";
 
 export async function obtenerPedidoActivo(orderCode) {
   const result = await pool.query(
-    `SELECT *
-     FROM orders
-     WHERE order_code = $1`,
+    `
+    SELECT *
+    FROM orders
+    WHERE order_code = $1
+    `,
     [orderCode]
   );
 
@@ -20,9 +22,10 @@ export async function obtenerPedidoActivo(orderCode) {
   }
 
   const saldoPendiente = Number(pedido.saldo_pendiente || 0);
+  const estado = (pedido.estado_pedido || "").toUpperCase();
 
-  // ❌ Finalizado real: entregado + sin saldo
-  if (pedido.estado_pedido === "ENTREGADO" && saldoPendiente === 0 || pedido.estado_pedido === "pagado" && saldoPendiente === 0) {
+  // ❌ Pedido finalizado (ya no activo)
+  if (saldoPendiente === 0 && (estado === "ENTREGADO" || estado === "PAGADO")) {
     return { error: "FINALIZADO", pedido };
   }
 
