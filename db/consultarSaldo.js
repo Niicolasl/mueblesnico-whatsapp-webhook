@@ -74,7 +74,7 @@ export const consultarSaldo = async (input) => {
       const anticipo = Number(order.valor_abonado || 0);
       const saldo = total - anticipo;
 
-      if (order.estado_pedido === "ENTREGADO" && saldo === 0) {
+      if (order.estado_pedido === "pagado" && saldo === 0) {
         continue;
       }
 
