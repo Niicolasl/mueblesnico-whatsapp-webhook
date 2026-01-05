@@ -159,26 +159,25 @@ export async function getOrder(order_code) {
  * PEDIDOS ACTIVOS POR TELÉFONO
  ************************************************/
 export async function getPedidosByPhone(telefono) {
-  const clean = normalizarTelefono(telefono);
+    const clean = normalizarTelefono(telefono);
 
-  const { rows } = await pool.query(
-    `
+    const { rows } = await pool.query(
+        `
     SELECT *,
            (valor_total - COALESCE(valor_abonado, 0)) AS saldo
     FROM orders
     WHERE numero_whatsapp = $1
       AND cancelado = false
-      AND estado_pedido <> 'CANCELADO'
       AND NOT (
-        estado_pedido = 'ENTREGADO'
+        fue_entregado = true
         AND (valor_total - COALESCE(valor_abonado, 0)) = 0
       )
     ORDER BY id DESC
     `,
-    [clean]
-  );
+        [clean]
+    );
 
-  return rows || [];
+    return rows || [];
 }
 
 
