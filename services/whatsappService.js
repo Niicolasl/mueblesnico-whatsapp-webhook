@@ -321,30 +321,46 @@ export const handleMessage = async (req, res) => {
     // 🟩 NOTIFICACIONES CLIENTE
     // =====================================================
 
-    async function notificarCambioEstado(pedido, enviar) {
-      let mensaje = null;
+   async function notificarCambioEstado(pedido, enviar) {
+  // 🛡️ Validación defensiva
+  if (
+    !pedido ||
+    !pedido.estado_pedido ||
+    !pedido.order_code ||
+    !pedido.numero_whatsapp
+  ) {
+    console.error(
+      "❌ notificarCambioEstado recibió un pedido inválido:",
+      pedido
+    );
+    return;
+  }
 
-      if (pedido.estado_pedido === "LISTO") {
-        mensaje =
-          `Hola 😊\n\n` +
-          `Tu pedido *${pedido.order_code}* ya está listo 🎉\n` +
-          `Cuando quieras, escríbeme y coordinamos la entrega.`;
-      }
+  let mensaje = null;
+  const estado = pedido.estado_pedido.toUpperCase();
 
-      if (pedido.estado_pedido === "ENTREGADO") {
-        mensaje =
-          `Hola 🙌\n\n` +
-          `Quería avisarte que tu pedido *${pedido.order_code}* ya fue entregado con éxito ✅ ` +
-          `Gracias por confiar en nosotros.\n\n` +
-          `Si necesitas algo más, aquí estamos.`;
-      }
+  if (estado === "LISTO") {
+    mensaje =
+      `Hola 😊\n\n` +
+      `Tu pedido *${pedido.order_code}* ya está listo 🎉\n` +
+      `Cuando quieras, escríbeme y coordinamos la entrega.`;
+  }
 
-      if (!mensaje) return;
+  if (estado === "ENTREGADO") {
+    mensaje =
+      `Hola 🙌\n\n` +
+      `Quería avisarte que tu pedido *${pedido.order_code}* ya fue entregado con éxito ✅\n\n` +
+      `Gracias por confiar en nosotros.\n` +
+      `Si necesitas algo más, aquí estamos 😊`;
+  }
 
-      await enviar(pedido.numero_whatsapp, {
-        text: { body: mensaje },
-      });
-    }
+  if (!mensaje) return;
+
+  await enviar(pedido.numero_whatsapp, {
+    text: { body: mensaje },
+  });
+}
+
 
     // =====================================================
     // =====================================================
