@@ -1,3 +1,5 @@
+import { pool } from "./init.js";
+
 export async function obtenerPedidoActivo(orderCode) {
   const result = await pool.query(
     `
