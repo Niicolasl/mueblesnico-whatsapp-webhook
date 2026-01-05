@@ -321,45 +321,45 @@ export const handleMessage = async (req, res) => {
     // 🟩 NOTIFICACIONES CLIENTE
     // =====================================================
 
-   async function notificarCambioEstado(pedido, enviar) {
-  // 🛡️ Validación defensiva
-  if (
-    !pedido ||
-    !pedido.estado_pedido ||
-    !pedido.order_code ||
-    !pedido.numero_whatsapp
-  ) {
-    console.error(
-      "❌ notificarCambioEstado recibió un pedido inválido:",
-      pedido
-    );
-    return;
-  }
+    async function notificarCambioEstado(pedido, enviar) {
+      // 🛡️ Validación defensiva
+      if (
+        !pedido ||
+        !pedido.estado_pedido ||
+        !pedido.order_code ||
+        !pedido.numero_whatsapp
+      ) {
+        console.error(
+          "❌ notificarCambioEstado recibió un pedido inválido:",
+          pedido
+        );
+        return;
+      }
 
-  let mensaje = null;
-  const estado = pedido.estado_pedido.toUpperCase();
+      let mensaje = null;
+      const estado = pedido.estado_pedido.toUpperCase();
 
-  if (estado === "LISTO") {
-    mensaje =
-      `Hola 😊\n\n` +
-      `Tu pedido *${pedido.order_code}* ya está listo 🎉\n` +
-      `Cuando quieras, escríbeme y coordinamos la entrega.`;
-  }
+      if (estado === "LISTO") {
+        mensaje =
+          `Hola 😊\n\n` +
+          `Tu pedido *${pedido.order_code}* ya está listo 🎉\n` +
+          `Cuando quieras, escríbeme y coordinamos la entrega.`;
+      }
 
-  if (estado === "ENTREGADO") {
-    mensaje =
-      `Hola 🙌\n\n` +
-      `Quería avisarte que tu pedido *${pedido.order_code}* ya fue entregado con éxito ✅\n\n` +
-      `Gracias por confiar en nosotros.\n` +
-      `Si necesitas algo más, aquí estamos 😊`;
-  }
+      if (estado === "ENTREGADO") {
+        mensaje =
+          `Hola 🙌\n\n` +
+          `Quería avisarte que tu pedido *${pedido.order_code}* ya fue entregado con éxito ✅\n\n` +
+          `Gracias por confiar en nosotros.\n` +
+          `Si necesitas algo más, aquí estamos 😊`;
+      }
 
-  if (!mensaje) return;
+      if (!mensaje) return;
 
-  await enviar(pedido.numero_whatsapp, {
-    text: { body: mensaje },
-  });
-}
+      await enviar(pedido.numero_whatsapp, {
+        text: { body: mensaje },
+      });
+    }
 
 
     // =====================================================
@@ -387,70 +387,70 @@ export const handleMessage = async (req, res) => {
     }
 
     if (esAdmin && adminState[from]?.step === "estado_codigo") {
-  const orderCode = input.toUpperCase();
-  const nuevoEstado = adminState[from].nuevoEstado;
+      const orderCode = input.toUpperCase();
+      const nuevoEstado = adminState[from].nuevoEstado;
 
-  const validacion = await obtenerPedidoActivo(orderCode);
+      const validacion = await obtenerPedidoActivo(orderCode);
 
-  if (validacion.error === "NO_EXISTE") {
-    await enviar(from, { text: { body: "❌ Pedido no encontrado." } });
-    delete adminState[from];
-    return res.sendStatus(200);
-  }
+      if (validacion.error === "NO_EXISTE") {
+        await enviar(from, { text: { body: "❌ Pedido no encontrado." } });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
 
-  if (validacion.error === "CANCELADO") {
-    await enviar(from, {
-      text: { body: "⛔ Este pedido está CANCELADO y no admite cambios." },
-    });
-    delete adminState[from];
-    return res.sendStatus(200);
-  }
+      if (validacion.error === "CANCELADO") {
+        await enviar(from, {
+          text: { body: "⛔ Este pedido está CANCELADO y no admite cambios." },
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
 
-  if (validacion.error === "FINALIZADO") {
-    await enviar(from, {
-      text: {
-        body:
-          "⚠️ Este pedido ya fue finalizado.\n\n" +
-          "No se puede cambiar su estado.",
-      },
-    });
-    delete adminState[from];
-    return res.sendStatus(200);
-  }
+      if (validacion.error === "FINALIZADO" && nuevoEstado !== "ENTREGADO") {
+        await enviar(from, {
+          text: {
+            body:
+              "⚠️ Este pedido ya fue finalizado.\n\n" +
+              "No se puede cambiar su estado.",
+          },
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
 
-  // ⬇️ ACTUALIZAR ESTADO
-  const pedido = await actualizarEstadoPedido(orderCode, nuevoEstado);
+      // ✅ ACTUALIZAR
+      const pedido = await actualizarEstadoPedido(orderCode, nuevoEstado);
 
-  // ⛔ VALIDACIÓN OBLIGATORIA
-  if (!pedido) {
-    await enviar(from, {
-      text: {
-        body:
-          "❌ No se pudo actualizar el estado del pedido.\n\n" +
-          "Puede estar cancelado o no cumplir las condiciones.",
-      },
-    });
-    delete adminState[from];
-    return res.sendStatus(200);
-  }
+      if (!pedido) {
+        await enviar(from, {
+          text: {
+            body:
+              "❌ No se pudo actualizar el estado del pedido.\n\n" +
+              "Verifica que no esté cancelado.",
+          },
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
 
-  // 📩 NOTIFICAR CLIENTE
-  await notificarCambioEstado(pedido, enviar);
+      // 📩 NOTIFICAR CLIENTE
+      await notificarCambioEstado(pedido, enviar);
 
-  delete adminState[from];
+      delete adminState[from];
 
-  // ✅ CONFIRMACIÓN AL ADMIN
-  await enviar(from, {
-    text: {
-      body:
-        `✅ *Estado actualizado*\n\n` +
-        `Pedido: ${pedido.order_code}\n` +
-        `Nuevo estado: ${nuevoEstado.replace("_", " ")}`,
-    },
-  });
+      // ✅ CONFIRMACIÓN ADMIN
+      await enviar(from, {
+        text: {
+          body:
+            `✅ *Estado actualizado*\n\n` +
+            `Pedido: ${pedido.order_code}\n` +
+            `Nuevo estado: ${nuevoEstado.replace("_", " ")}`,
+        },
+      });
 
-  return res.sendStatus(200);
-}
+      return res.sendStatus(200);
+    }
+
 
     // =====================================================
     // 🟩 ADMIN: ANTICIPO
