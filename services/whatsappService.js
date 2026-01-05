@@ -367,6 +367,12 @@ export const handleMessage = async (req, res) => {
     // 🟩 ADMIN: CAMBIO DE ESTADO MANUAL (ÚNICO)
     // =====================================================
 
+    const comandosEstado = {
+      "/panticipo": "PENDIENTE_ANTICIPO", //no esta en uso
+      "/listo": "LISTO",
+      "/entregado": "ENTREGADO",
+    };
+
     if (esAdmin && adminState[from]?.step === "estado_codigo") {
   const orderCode = input.toUpperCase();
   const nuevoEstado = adminState[from].nuevoEstado;
