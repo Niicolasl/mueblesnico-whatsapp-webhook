@@ -368,7 +368,6 @@ export const handleMessage = async (req, res) => {
     // =====================================================
 
     const comandosEstado = {
-      "/panticipo": "PENDIENTE_ANTICIPO", //no esta en uso
       "/listo": "LISTO",
       "/entregado": "ENTREGADO",
     };
@@ -456,7 +455,7 @@ export const handleMessage = async (req, res) => {
     // 🟩 ADMIN: ANTICIPO
     // =====================================================
 
-    if (esAdmin && inputLower === "/anticipo") {
+    if (esAdmin && inputLower === "/abono") {
       adminState[from] = { step: "anticipo_codigo" };
 
       await enviar(from, {
