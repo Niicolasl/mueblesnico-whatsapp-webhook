@@ -390,6 +390,19 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
+      if (validacion.error === "FINALIZADO") {
+      await enviar(from, {
+        text: {
+          body:
+            "⚠️ Este pedido ya fue finalizado (entregado y sin saldo pendiente).\n\n" +
+            "No se puede cambiar su estado.",
+        },
+      });
+      delete adminState[from];
+      return res.sendStatus(200);
+    }
+
+
       const pedido = await actualizarEstadoPedido(orderCode, nuevoEstado);
 
       await notificarCambioEstado(pedido, enviar);
@@ -404,6 +417,13 @@ export const handleMessage = async (req, res) => {
             `Nuevo estado: ${nuevoEstado.replace("_", " ")}`,
         },
       });
+      if (!pedido) {
+      await enviar(from, {
+        text: { body: "❌ No se pudo actualizar el estado del pedido." },
+      });
+      delete adminState[from];
+      return res.sendStatus(200);
+    }
 
       return res.sendStatus(200);
     }
