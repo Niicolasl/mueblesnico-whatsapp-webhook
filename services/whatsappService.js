@@ -293,7 +293,7 @@ export const handleMessage = async (req, res) => {
           await enviar(result.numero_whatsapp, {
             text: {
               body:
-                "Hola 😊\n\n" +
+                `Hola, ${saludoHora} 😊\n\n` +
                 `Queremos informarte que tu pedido *${result.order_code}* ` +
                 "ha sido cancelado.\n\n" +
                 (result.descripcion_trabajo
@@ -341,7 +341,7 @@ export const handleMessage = async (req, res) => {
 
       if (estado === "LISTO") {
         mensaje =
-          `Hola 😊\n\n` +
+          `Hola, ${saludoHora} 😊\n\n` +
           `Tu pedido *${pedido.order_code}* ya está listo 🎉\n` +
           `Cuando quieras, escríbeme y coordinamos la entrega.`;
       }
@@ -461,7 +461,7 @@ export const handleMessage = async (req, res) => {
 
       await enviar(from, {
         text: {
-          body: "📌 Ingresa el *código del pedido* (ej: MN-2025-0004)",
+          body: "📌 Ingresa el *código del pedido*",
         },
       });
 
@@ -521,7 +521,9 @@ export const handleMessage = async (req, res) => {
     }
 
     if (esAdmin && adminState[from]?.step === "anticipo_valor") {
-      const valor = Number(input.replace(/[^\d]/g, ""));
+      const base = Number(input.replace(/[^\d]/g, ""));
+      const valor = base * 1000;
+
 
       if (!valor || valor <= 0) {
         await enviar(from, {

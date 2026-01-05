@@ -105,9 +105,11 @@ export async function handleNewOrderStep(admin, message) {
 
         /** ---------------- PASO 4 ---------------- */
         case 4: {
-            const valor = Number(texto.replace(/\D/g, ""));
+            const base = Number(texto.replace(/\D/g, ""));
+            const valor = base * 1000;
 
-            if (!valor || valor <= 0) {
+
+            if (!base || base <= 0) {
                 await sendMessage(admin, {
                     messaging_product: "whatsapp",
                     text: {
