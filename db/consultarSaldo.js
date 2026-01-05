@@ -13,29 +13,32 @@ export const consultarSaldo = async (input) => {
     // 1️⃣ ID numérico
     if (/^\d+$/.test(limpio) && limpio.length <= 6) {
       query = `
-        SELECT *
+        SELECT *,
+               (valor_total - COALESCE(valor_abonado, 0)) AS saldo
         FROM orders
         WHERE id = $1
       `;
       values = [Number(limpio)];
     }
 
-    // 2️⃣ Código de pedido MN-AAAA-XXXX
+    // 2️⃣ Código de pedido
     else if (/^MN-\d{4}-\d{4}$/i.test(limpio)) {
       query = `
-        SELECT *
+        SELECT *,
+               (valor_total - COALESCE(valor_abonado, 0)) AS saldo
         FROM orders
         WHERE order_code = $1
       `;
       values = [limpio.toUpperCase()];
     }
 
-    // 3️⃣ Número de WhatsApp
+    // 3️⃣ Número WhatsApp
     else if (/^\d{7,10}$/.test(limpio)) {
       const telefono = normalizarTelefono(limpio);
 
       query = `
-        SELECT *
+        SELECT *,
+               (valor_total - COALESCE(valor_abonado, 0)) AS saldo
         FROM orders
         WHERE numero_whatsapp = $1
         ORDER BY id DESC
@@ -43,7 +46,6 @@ export const consultarSaldo = async (input) => {
       values = [telefono];
     }
 
-    // ❌ Formato inválido
     else {
       return {
         error: true,
@@ -54,7 +56,7 @@ export const consultarSaldo = async (input) => {
 
     const { rows } = await pool.query(query, values);
 
-    if (rows.length === 0) {
+    if (!rows.length) {
       return {
         error: true,
         message: "No encontramos pedidos asociados a este dato.",
@@ -64,31 +66,27 @@ export const consultarSaldo = async (input) => {
     const pedidosValidos = [];
 
     for (const order of rows) {
-      const validacion = await obtenerPedidoActivo(order.order_code);
+      const saldo = Number(order.saldo);
+      const fueEntregado = Boolean(order.fue_entregado);
+
+      // ❌ SOLO excluir si está ENTREGADO y PAGADO
+      if (fueEntregado && saldo === 0) continue;
 
       // ❌ Cancelado
-      if (validacion.error === "CANCELADO") continue;
-
-      // ❌ Entregado y pagado completamente
-      const total = Number(order.valor_total);
-      const anticipo = Number(order.valor_abonado || 0);
-      const saldo = total - anticipo;
-
-      if (order.estado_pedido === "ENTREGADO" && saldo === 0 || order.estado_pedido === "pagado" && saldo === 0) {
-        continue;
-      }
+      if (order.cancelado) continue;
 
       pedidosValidos.push({
         id: order.id,
         codigo: order.order_code,
         descripcion: order.descripcion_trabajo,
-        total,
-        anticipo,
+        total: Number(order.valor_total),
+        anticipo: Number(order.valor_abonado || 0),
         saldo,
+        fue_entregado: fueEntregado,
       });
     }
 
-    if (pedidosValidos.length === 0) {
+    if (!pedidosValidos.length) {
       return {
         error: true,
         message: "No encontramos pedidos activos con saldo consultable.",
@@ -104,3 +102,4 @@ export const consultarSaldo = async (input) => {
     };
   }
 };
+
