@@ -367,82 +367,72 @@ export const handleMessage = async (req, res) => {
     // 🟩 ADMIN: CAMBIO DE ESTADO MANUAL (ÚNICO)
     // =====================================================
 
-    const comandosEstado = {
-      "/panticipo": "PENDIENTE_ANTICIPO", //no esta en uso
-      "/listo": "LISTO",
-      "/entregado": "ENTREGADO",
-    };
-
-    if (esAdmin && comandosEstado[inputLower]) {
-      adminState[from] = {
-        step: "estado_codigo",
-        nuevoEstado: comandosEstado[inputLower],
-      };
-
-      await enviar(from, {
-        text: { body: "📌 Ingresa el *código del pedido*" },
-      });
-
-      return res.sendStatus(200);
-    }
-
     if (esAdmin && adminState[from]?.step === "estado_codigo") {
-      const orderCode = input.toUpperCase();
-      const nuevoEstado = adminState[from].nuevoEstado;
+  const orderCode = input.toUpperCase();
+  const nuevoEstado = adminState[from].nuevoEstado;
 
-      const validacion = await obtenerPedidoActivo(orderCode);
+  const validacion = await obtenerPedidoActivo(orderCode);
 
-      if (validacion.error === "NO_EXISTE") {
-        await enviar(from, { text: { body: "❌ Pedido no encontrado." } });
-        delete adminState[from];
-        return res.sendStatus(200);
-      }
+  if (validacion.error === "NO_EXISTE") {
+    await enviar(from, { text: { body: "❌ Pedido no encontrado." } });
+    delete adminState[from];
+    return res.sendStatus(200);
+  }
 
-      if (validacion.error === "CANCELADO") {
-        await enviar(from, {
-          text: { body: "⛔ Este pedido está CANCELADO y no admite cambios." },
-        });
-        delete adminState[from];
-        return res.sendStatus(200);
-      }
+  if (validacion.error === "CANCELADO") {
+    await enviar(from, {
+      text: { body: "⛔ Este pedido está CANCELADO y no admite cambios." },
+    });
+    delete adminState[from];
+    return res.sendStatus(200);
+  }
 
-      if (validacion.error === "FINALIZADO") {
-      await enviar(from, {
-        text: {
-          body:
-            "⚠️ Este pedido ya fue finalizado (entregado y sin saldo pendiente).\n\n" +
-            "No se puede cambiar su estado.",
-        },
-      });
-      delete adminState[from];
-      return res.sendStatus(200);
-    }
+  if (validacion.error === "FINALIZADO") {
+    await enviar(from, {
+      text: {
+        body:
+          "⚠️ Este pedido ya fue finalizado.\n\n" +
+          "No se puede cambiar su estado.",
+      },
+    });
+    delete adminState[from];
+    return res.sendStatus(200);
+  }
 
+  // ⬇️ ACTUALIZAR ESTADO
+  const pedido = await actualizarEstadoPedido(orderCode, nuevoEstado);
 
-      const pedido = await actualizarEstadoPedido(orderCode, nuevoEstado);
+  // ⛔ VALIDACIÓN OBLIGATORIA
+  if (!pedido) {
+    await enviar(from, {
+      text: {
+        body:
+          "❌ No se pudo actualizar el estado del pedido.\n\n" +
+          "Puede estar cancelado o no cumplir las condiciones.",
+      },
+    });
+    delete adminState[from];
+    return res.sendStatus(200);
+  }
 
-      await notificarCambioEstado(pedido, enviar);
+  // 📩 NOTIFICAR CLIENTE
+  await notificarCambioEstado(pedido, enviar);
 
-      delete adminState[from];
+  delete adminState[from];
 
-      await enviar(from, {
-        text: {
-          body:
-            `✅ *Estado actualizado*\n\n` +
-            `Pedido: ${pedido.order_code}\n` +
-            `Nuevo estado: ${nuevoEstado.replace("_", " ")}`,
-        },
-      });
-      if (!pedido) {
-      await enviar(from, {
-        text: { body: "❌ No se pudo actualizar el estado del pedido." },
-      });
-      delete adminState[from];
-      return res.sendStatus(200);
-    }
+  // ✅ CONFIRMACIÓN AL ADMIN
+  await enviar(from, {
+    text: {
+      body:
+        `✅ *Estado actualizado*\n\n` +
+        `Pedido: ${pedido.order_code}\n` +
+        `Nuevo estado: ${nuevoEstado.replace("_", " ")}`,
+    },
+  });
 
-      return res.sendStatus(200);
-    }
+  return res.sendStatus(200);
+}
+
 
     // =====================================================
     // 🟩 ADMIN: ANTICIPO
