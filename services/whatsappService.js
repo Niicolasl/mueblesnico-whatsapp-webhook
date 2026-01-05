@@ -373,6 +373,19 @@ export const handleMessage = async (req, res) => {
       "/entregado": "ENTREGADO",
     };
 
+    if (esAdmin && comandosEstado[inputLower]) {
+      adminState[from] = {
+        step: "estado_codigo",
+        nuevoEstado: comandosEstado[inputLower],
+      };
+
+      await enviar(from, {
+        text: { body: "📌 Ingresa el *código del pedido*" },
+      });
+
+      return res.sendStatus(200);
+    }
+
     if (esAdmin && adminState[from]?.step === "estado_codigo") {
   const orderCode = input.toUpperCase();
   const nuevoEstado = adminState[from].nuevoEstado;
@@ -438,7 +451,6 @@ export const handleMessage = async (req, res) => {
 
   return res.sendStatus(200);
 }
-
 
     // =====================================================
     // 🟩 ADMIN: ANTICIPO
