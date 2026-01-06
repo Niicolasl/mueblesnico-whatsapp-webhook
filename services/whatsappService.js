@@ -110,6 +110,17 @@ export const handleMessage = async (req, res) => {
     const estado = global.estadoCliente;
 
     const esAdmin = ADMINS.includes(from);
+    
+    // =====================================================
+    // 🟩 COTIZAR 
+    // =====================================================
+    const texto = input.toLowerCase();
+
+    function contieneCotizar(texto) {
+      return (
+        texto.includes("cotizar")
+      );
+    }
 
     // =====================================================
     // 👋 SALUDOS NATURALES (ANTES DE TODO)
@@ -133,8 +144,30 @@ export const handleMessage = async (req, res) => {
     const esSaludo = saludos.some(
       (saludo) => inputLower === saludo || inputLower.startsWith(saludo)
     );
-
+    // =====================================================
+    // 🎁 BONUS: SALUDO + COTIZAR EN EL MISMO MENSAJE
+    // =====================================================
     if (
+      esSaludo &&
+      contieneCotizar(inputLower) &&
+      !global.estadoCotizacion?.[from] &&
+      !adminState[from]
+    ) {
+      const saludoHora = obtenerSaludoColombia();
+
+      // 1️⃣ Saludamos
+      await enviar(from, {
+        text: {
+          body: `Hola, ${saludoHora} 😊`,
+        },
+      });
+
+      // 2️⃣ Forzamos entrada al flujo de cotización
+      input = "COTIZAR";
+    }
+
+
+    if(
       esSaludo &&
       !global.estadoCotizacion?.[from] &&
       !global.adminState?.[from]
@@ -143,17 +176,20 @@ export const handleMessage = async (req, res) => {
 
       await enviar(from, {
         text: {
-          body: `Hola, ${saludoHora} 😊\n` + "Espero que estés muy bien.",
+          body: `Hola, ${saludoHora} 😊\nEspero que estés muy bien.`,
         },
       });
 
       await enviar(from, {
         text: {
-          body: "Escribe *Menu* en el momento que desees para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo.\n\n",
+          body:
+            "Escribe *Menu* en el momento que desees para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo.",
         },
       });
+
       return res.sendStatus(200);
     }
+
 
     // =====================================================
     // 🟪 SALDO (esperando dato)
@@ -449,17 +485,7 @@ export const handleMessage = async (req, res) => {
 
       return res.sendStatus(200);
     }
-    // =====================================================
-    // 🟩 COTIZAR 
-    // =====================================================
-    const texto = input.toLowerCase();
-
-    function contieneCotizar(texto) {
-      return (
-        texto.includes("cotizar")
-      );
-    }
-
+  
 
     // =====================================================
     // 🟩 ADMIN: ANTICIPO
