@@ -121,6 +121,18 @@ export const handleMessage = async (req, res) => {
         texto.includes("cotizar")
       );
     }
+    // =====================================================
+    // 🧠 DETECCIÓN INTELIGENTE DE "COTIZAR" (PRIORIDAD ALTA)
+    // =====================================================
+    if (
+      !esAdmin &&
+      !global.estadoCotizacion?.[from] &&
+      !adminState[from] &&
+      inputLower.includes("cotizar")
+    ) {
+      input = "COTIZAR";
+    }
+
 
     // =====================================================
     // 👋 SALUDOS NATURALES (ANTES DE TODO)
@@ -144,34 +156,14 @@ export const handleMessage = async (req, res) => {
     const esSaludo = saludos.some(
       (saludo) => inputLower === saludo || inputLower.startsWith(saludo)
     );
-    // =====================================================
-    // 🎁 BONUS: SALUDO + COTIZAR EN EL MISMO MENSAJE
-    // =====================================================
+    
     if (
       esSaludo &&
-      contieneCotizar(inputLower) &&
+      input !== "COTIZAR" &&
       !global.estadoCotizacion?.[from] &&
       !adminState[from]
     ) {
-      const saludoHora = obtenerSaludoColombia();
 
-      // 1️⃣ Saludamos
-      await enviar(from, {
-        text: {
-          body: `Hola, ${saludoHora} 😊`,
-        },
-      });
-
-      // 2️⃣ Forzamos entrada al flujo de cotización
-      input = "COTIZAR";
-    }
-
-
-    if(
-      esSaludo &&
-      !global.estadoCotizacion?.[from] &&
-      !global.adminState?.[from]
-    ) {
       const saludoHora = obtenerSaludoColombia();
 
       await enviar(from, {
