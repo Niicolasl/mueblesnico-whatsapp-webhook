@@ -103,6 +103,7 @@ export const handleMessage = async (req, res) => {
 
     let input = interactiveId ?? text;
     let inputLower = typeof input === "string" ? input.toLowerCase() : "";
+    let forceCotizar = false;
 
     console.log("📩 INPUT:", input, "FROM:", from);
 
