@@ -449,6 +449,30 @@ export const handleMessage = async (req, res) => {
 
       return res.sendStatus(200);
     }
+    // =====================================================
+    // 🟩 COTIZAR 
+    // =====================================================
+    const texto = input.toLowerCase();
+
+    function contieneCotizar(texto) {
+      return (
+        texto.includes("cotizar")
+      );
+    }
+
+    // =====================================================
+    // 🧠 DETECCIÓN INTELIGENTE DE "COTIZAR" EN TEXTO LIBRE
+    // =====================================================
+    if (
+      !esAdmin &&
+      !global.estadoCotizacion?.[from] &&
+      !adminState[from] &&
+      contieneCotizar(inputLower)
+    ) {
+      // simulamos que escribió "COTIZAR"
+      input = "COTIZAR";
+    }
+
 
 
     // =====================================================
