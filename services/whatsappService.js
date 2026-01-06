@@ -126,12 +126,12 @@ export const handleMessage = async (req, res) => {
     // 🧠 DETECCIÓN INTELIGENTE DE "COTIZAR" (PRIORIDAD REAL)
     // =====================================================
     if (
-      !esAdmin &&
+      // !esAdmin&&
       !global.estadoCotizacion?.[from] &&
       !adminState[from] &&
-      inputLower.includes("cotizar")
+      contieneCotizar(inputLower)
     ) {
-      forceCotizar = true;
+      input = "COTIZAR";
     }
 
 
@@ -644,18 +644,6 @@ export const handleMessage = async (req, res) => {
       });
 
       return res.sendStatus(200);
-    }
-    // =====================================================
-    // 🧠 DETECCIÓN INTELIGENTE DE "COTIZAR" EN TEXTO LIBRE
-    // =====================================================
-    if (
-      !esAdmin &&
-      !global.estadoCotizacion?.[from] &&
-      !adminState[from] &&
-      contieneCotizar(inputLower)
-    ) {
-      // simulamos que escribió "COTIZAR"
-      input = "COTIZAR";
     }
 
     // =====================================================
