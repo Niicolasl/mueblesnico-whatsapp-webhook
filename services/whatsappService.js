@@ -101,8 +101,8 @@ export const handleMessage = async (req, res) => {
       interactiveId = message.interactive.button_reply.id;
     }
 
-    const input = interactiveId ?? text;
-    const inputLower = typeof input === "string" ? input.toLowerCase() : "";
+    let input = interactiveId ?? text;
+    let inputLower = typeof input === "string" ? input.toLowerCase() : "";
 
     console.log("📩 INPUT:", input, "FROM:", from);
 
@@ -122,7 +122,7 @@ export const handleMessage = async (req, res) => {
       );
     }
     // =====================================================
-    // 🧠 DETECCIÓN INTELIGENTE DE "COTIZAR" (PRIORIDAD ALTA)
+    // 🧠 DETECCIÓN INTELIGENTE DE "COTIZAR" (PRIORIDAD REAL)
     // =====================================================
     if (
       !esAdmin &&
@@ -130,7 +130,7 @@ export const handleMessage = async (req, res) => {
       !adminState[from] &&
       inputLower.includes("cotizar")
     ) {
-      input = "COTIZAR";
+      forceCotizar = true;
     }
 
 
@@ -159,10 +159,11 @@ export const handleMessage = async (req, res) => {
     
     if (
       esSaludo &&
-      input !== "COTIZAR" &&
+      !forceCotizar &&
       !global.estadoCotizacion?.[from] &&
       !adminState[from]
-    ) {
+    )
+ {
 
       const saludoHora = obtenerSaludoColombia();
 
@@ -175,13 +176,18 @@ export const handleMessage = async (req, res) => {
       await enviar(from, {
         text: {
           body:
-            "Escribe *Menu* en el momento que desees para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo.",
+            "Escribe *Menú* en el momento que desees para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo.",
         },
       });
 
       return res.sendStatus(200);
     }
-
+    // =====================================================
+    // 🟩 ENTRADA FORZADA AL FLUJO DE COTIZACIÓN
+    // =====================================================
+    if (forceCotizar) {
+      input = "COTIZAR";
+    }
 
     // =====================================================
     // 🟪 SALDO (esperando dato)
