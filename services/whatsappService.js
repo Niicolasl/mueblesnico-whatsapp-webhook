@@ -113,26 +113,17 @@ export const handleMessage = async (req, res) => {
     const esAdmin = ADMINS.includes(from);
     
     // =====================================================
-    // 🟩 COTIZAR 
-    // =====================================================
-    const texto = input.toLowerCase();
-
-    function contieneCotizar(texto) {
-      return (
-        texto.includes("cotizar")
-      );
-    }
-    // =====================================================
-    // 🧠 DETECCIÓN INTELIGENTE DE "COTIZAR" (PRIORIDAD REAL)
+    // 🧠 DETECCIÓN PRIORITARIA DE "COTIZAR" (ANTES DEL SALUDO)
     // =====================================================
     if (
-      // !esAdmin&&
+      //!esAdmin &&
       !global.estadoCotizacion?.[from] &&
       !adminState[from] &&
-      contieneCotizar(inputLower)
+      /\bcotizar\b/.test(inputLower)
     ) {
-      input = "COTIZAR";
+      forceCotizar = true;
     }
+
 
 
     // =====================================================
