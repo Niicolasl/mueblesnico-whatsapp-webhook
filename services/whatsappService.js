@@ -149,7 +149,7 @@ export const handleMessage = async (req, res) => {
 
       await enviar(from, {
         text: {
-          body: "Escribe *Menu* para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo.\n\n",
+          body: "Escribe *Menu* en el momento que desees para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo.\n\n",
         },
       });
       return res.sendStatus(200);
@@ -460,20 +460,6 @@ export const handleMessage = async (req, res) => {
       );
     }
 
-    // =====================================================
-    // 🧠 DETECCIÓN INTELIGENTE DE "COTIZAR" EN TEXTO LIBRE
-    // =====================================================
-    if (
-      !esAdmin &&
-      !global.estadoCotizacion?.[from] &&
-      !adminState[from] &&
-      contieneCotizar(inputLower)
-    ) {
-      // simulamos que escribió "COTIZAR"
-      input = "COTIZAR";
-    }
-
-
 
     // =====================================================
     // 🟩 ADMIN: ANTICIPO
@@ -633,6 +619,18 @@ export const handleMessage = async (req, res) => {
       });
 
       return res.sendStatus(200);
+    }
+    // =====================================================
+    // 🧠 DETECCIÓN INTELIGENTE DE "COTIZAR" EN TEXTO LIBRE
+    // =====================================================
+    if (
+      !esAdmin &&
+      !global.estadoCotizacion?.[from] &&
+      !adminState[from] &&
+      contieneCotizar(inputLower)
+    ) {
+      // simulamos que escribió "COTIZAR"
+      input = "COTIZAR";
     }
 
     // =====================================================
