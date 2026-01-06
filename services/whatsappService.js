@@ -151,12 +151,9 @@ export const handleMessage = async (req, res) => {
     
     if (
       esSaludo &&
-      !forceCotizar &&
       !global.estadoCotizacion?.[from] &&
       !adminState[from]
-    )
- {
-
+    ) {
       const saludoHora = obtenerSaludoColombia();
 
       await enviar(from, {
@@ -165,21 +162,26 @@ export const handleMessage = async (req, res) => {
         },
       });
 
-      await enviar(from, {
-        text: {
-          body:
-            "Escribe *Menú* en el momento que desees para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo.",
-        },
-      });
+      // 👉 Si NO va a cotizar, mostramos menú y salimos
+      if (!forceCotizar) {
+        await enviar(from, {
+          text: {
+            body:
+              "Escribe *Menú* en el momento que desees para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo.",
+          },
+        });
 
-      return res.sendStatus(200);
-    }
+        return res.sendStatus(200);
+      }
+    } // ✅ CIERRE CORRECTO DEL IF DE SALUDO
+
     // =====================================================
     // 🟩 ENTRADA FORZADA AL FLUJO DE COTIZACIÓN
     // =====================================================
     if (forceCotizar) {
       input = "COTIZAR";
     }
+
 
     // =====================================================
     // 🟪 SALDO (esperando dato)
