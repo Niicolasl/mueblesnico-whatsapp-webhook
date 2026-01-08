@@ -9,7 +9,15 @@ dotenv.config();
 initDatabase();
 
 const app = express();
-app.use(express.json());
+
+// 👇 IMPORTANTE: guardar rawBody para validar firma
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 
 // 🔥 ÚNICO webhook
 app.use("/webhook", webhookRouter);
