@@ -88,6 +88,7 @@ export const handleMessage = async (req, res) => {
 
     // 📞 Número entrante normalizado (SIN 57)
     const from = normalizarTelefono(message.from);
+    let text = message.text?.body?.trim() || "";
     const client = await getOrCreateClient(from, profileName);
     if (text) {
       await forwardToChatwoot(from, client.name, text);
@@ -99,7 +100,7 @@ export const handleMessage = async (req, res) => {
       delete global.cotizacionTimers[from];
     }
 
-    let text = message.text?.body?.trim() || "";
+    
     let interactiveId = null;
 
     if (message.interactive?.list_reply) {
