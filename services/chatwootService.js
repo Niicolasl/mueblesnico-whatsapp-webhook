@@ -53,6 +53,12 @@ export async function forwardToChatwoot(phone, name, text) {
             conversationId = convoRes.data.id;
             conversationCache.set(phone, conversationId);
         }
+        
+        console.log("🔐 CHATWOOT_API_TOKEN existe?", !!process.env.CHATWOOT_API_TOKEN);
+        console.log(
+            "🔐 CHATWOOT_API_TOKEN length:",
+            process.env.CHATWOOT_API_TOKEN?.length
+        );
 
         // 3️⃣ Enviar mensaje a la conversación
         await axios.post(
