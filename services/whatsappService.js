@@ -8,7 +8,7 @@ import {
 global.cotizacionTimers = global.cotizacionTimers || {};
 global.estadoCotizacion = global.estadoCotizacion || {};
 
-import { consultarPedido } from "./orderService.js";
+import { getOrCreateClient } from "../db/clients.js";
 import { consultarSaldo } from "../db/consultarSaldo.js";
 import { registrarAnticipo } from "../db/anticipo.js";
 import { cancelarPedido } from "../db/cancelarPedido.js";
@@ -16,6 +16,7 @@ import { obtenerPedidoActivo } from "../db/validarPedidoActivo.js";
 import { actualizarEstadoPedido } from "../db/actualizarEstadoPedido.js";
 import { getPedidosByPhone } from "../db/orders.js";
 import { obtenerSaludoColombia } from "../utils/saludos.js";
+import { forwardToChatwoot } from "../services/chatwootService.js";
 
 import {
   menuPrincipal,
@@ -79,11 +80,18 @@ export const handleMessage = async (req, res) => {
     const entry = req.body.entry?.[0];
     const changes = entry?.changes?.[0];
     const message = changes?.value?.messages?.[0];
+    const contact = changes?.value?.contacts?.[0];
+    const profileName = contact?.profile?.name || null;
+
 
     if (!message) return res.sendStatus(200);
 
     // 📞 Número entrante normalizado (SIN 57)
     const from = normalizarTelefono(message.from);
+    const client = await getOrCreateClient(from, profileName);
+    if (text) {
+      await forwardToChatwoot(from, client.name, text);
+    }
 
     // ✋ Cancelamos SOLO si el cliente sigue en el flujo de cotización
     if (global.estadoCotizacion?.[from] && global.cotizacionTimers?.[from]) {
