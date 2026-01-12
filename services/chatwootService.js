@@ -11,6 +11,13 @@ const conversationCache = new Map();
 
 export async function forwardToChatwoot(phone, name, text) {
     try {
+        // 🔍 DEBUG CRÍTICO (antes de cualquier request)
+        console.log("🔐 CHATWOOT_API_TOKEN existe?", !!process.env.CHATWOOT_API_TOKEN);
+        console.log(
+            "🔐 CHATWOOT_API_TOKEN length:",
+            process.env.CHATWOOT_API_TOKEN?.length
+        );
+
         console.log("📤 Enviando a Chatwoot:", phone, name, text);
 
         // 1️⃣ Crear o encontrar contacto
@@ -19,13 +26,13 @@ export async function forwardToChatwoot(phone, name, text) {
             {
                 identifier: phone,
                 name: name || phone,
-                phone_number: phone
+                phone_number: phone,
             },
             {
                 headers: {
                     Authorization: `Bearer ${CHATWOOT_TOKEN}`,
-                    "Content-Type": "application/json"
-                }
+                    "Content-Type": "application/json",
+                },
             }
         );
 
@@ -40,43 +47,36 @@ export async function forwardToChatwoot(phone, name, text) {
                 {
                     source_id: phone,
                     inbox_id: INBOX_ID,
-                    contact_id: contactId
+                    contact_id: contactId,
                 },
                 {
                     headers: {
                         Authorization: `Bearer ${CHATWOOT_TOKEN}`,
-                        "Content-Type": "application/json"
-                    }
+                        "Content-Type": "application/json",
+                    },
                 }
             );
 
             conversationId = convoRes.data.id;
             conversationCache.set(phone, conversationId);
         }
-        
-        console.log("🔐 CHATWOOT_API_TOKEN existe?", !!process.env.CHATWOOT_API_TOKEN);
-        console.log(
-            "🔐 CHATWOOT_API_TOKEN length:",
-            process.env.CHATWOOT_API_TOKEN?.length
-        );
 
         // 3️⃣ Enviar mensaje a la conversación
         await axios.post(
             `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
             {
                 content: text,
-                message_type: "incoming"
+                message_type: "incoming",
             },
             {
                 headers: {
                     Authorization: `Bearer ${CHATWOOT_TOKEN}`,
-                    "Content-Type": "application/json"
-                }
+                    "Content-Type": "application/json",
+                },
             }
         );
 
         console.log("✅ Mensaje enviado a Chatwoot");
-
     } catch (error) {
         console.error(
             "❌ Error enviando a Chatwoot:",
