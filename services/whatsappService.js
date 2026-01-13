@@ -16,7 +16,7 @@ import { obtenerPedidoActivo } from "../db/validarPedidoActivo.js";
 import { actualizarEstadoPedido } from "../db/actualizarEstadoPedido.js";
 import { getPedidosByPhone } from "../db/orders.js";
 import { obtenerSaludoColombia } from "../utils/saludos.js";
-import { forwardToChatwoot } from "../services/chatwootService.js";
+import { forwardToChatwoot, sendBotMessageToChatwoot } from "../services/chatwootService.js";
 
 import {
   menuPrincipal,
@@ -36,39 +36,43 @@ const ADMINS = ["3204128555", "3125906313"];
 const adminState = {};
 
 // 🔧 Helper envío
-const enviar = async (to, payload) => {
+const enviar = async (to, payload, logChatwoot = true) => {
   const toWhatsapp = telefonoParaWhatsApp(to);
 
   if (payload?.type === "interactive") {
-    return sendMessage(toWhatsapp, {
+    await sendMessage(toWhatsapp, {
       type: "interactive",
       interactive: payload.interactive,
     });
+  } else {
+    await sendMessage(toWhatsapp, payload);
   }
 
-  return sendMessage(toWhatsapp, payload);
+  // 🔹 Registrar mensaje en Chatwoot
+  if (logChatwoot && payload?.text?.body) {
+    try {
+      await sendBotMessageToChatwoot(toWhatsapp, payload.text.body);
+    } catch (err) {
+      console.error("⚠️ Error registrando mensaje BOT en Chatwoot:", err.message || err);
+    }
+  }
 };
 
 // ⏱️ Mensaje diferido al final de cotización
 const programarMensajeAsesor = async (from) => {
-  // si ya existe un timer, lo cancelamos
   if (global.cotizacionTimers[from]) {
     clearTimeout(global.cotizacionTimers[from]);
   }
 
   global.cotizacionTimers[from] = setTimeout(async () => {
-    await enviar(from, {
-      text: {
-        body:
-          "¡Gracias por la información! 😊" +
-          "Ya tenemos todo lo necesario para continuar con tu cotización. " +
-          "Apenas esté disponible, me comunicare contigo para darte el valor y resolver cualquier duda.",
-      },
-    });
+    const body =
+      "¡Gracias por la información! 😊" +
+      "Ya tenemos todo lo necesario para continuar con tu cotización. " +
+      "Apenas esté disponible, me comunicare contigo para darte el valor y resolver cualquier duda.";
 
-    // limpiamos timer
+    await enviar(from, { text: { body } });
     delete global.cotizacionTimers[from];
-  }, 13 * 1000); // ⏱️ 13sg
+  }, 13 * 1000);
 };
 
 // =====================================================
@@ -85,17 +89,13 @@ export const handleMessage = async (req, res) => {
 
     if (!message) return res.sendStatus(200);
 
-    // 📞 Número entrante normalizado (SIN 57)
     const from = normalizarTelefono(message.from);
-
-    // 📞 Número en formato E.164 para servicios externos (Chatwoot, WhatsApp API)
-    const fromE164 = telefonoParaWhatsApp(from); // ej: 573204128555
+    const fromE164 = telefonoParaWhatsApp(from);
 
     let text = message.text?.body?.trim() || "";
-
     const client = await getOrCreateClient(from, profileName);
 
-    // 🛡️ Enviamos a Chatwoot SIN permitir que rompa el bot
+    // 🛡️ Registrar mensaje del cliente en Chatwoot
     if (text) {
       try {
         await forwardToChatwoot(fromE164, client.name, text);
@@ -104,22 +104,15 @@ export const handleMessage = async (req, res) => {
       }
     }
 
-
-    // ✋ Cancelamos SOLO si el cliente sigue en el flujo de cotización
+    // ✋ Cancelar timers de cotización si hay
     if (global.estadoCotizacion?.[from] && global.cotizacionTimers?.[from]) {
       clearTimeout(global.cotizacionTimers[from]);
       delete global.cotizacionTimers[from];
     }
 
-    
     let interactiveId = null;
-
-    if (message.interactive?.list_reply) {
-      interactiveId = message.interactive.list_reply.id;
-    }
-    if (message.interactive?.button_reply) {
-      interactiveId = message.interactive.button_reply.id;
-    }
+    if (message.interactive?.list_reply) interactiveId = message.interactive.list_reply.id;
+    if (message.interactive?.button_reply) interactiveId = message.interactive.button_reply.id;
 
     let input = interactiveId ?? text;
     let inputLower = typeof input === "string" ? input.toLowerCase() : "";
@@ -131,12 +124,11 @@ export const handleMessage = async (req, res) => {
     const estado = global.estadoCliente;
 
     const esAdmin = ADMINS.includes(from);
-    
+
     // =====================================================
-    // 🧠 DETECCIÓN PRIORITARIA DE "COTIZAR" (ANTES DEL SALUDO)
+    // 🧠 DETECCIÓN PRIORITARIA DE "COTIZAR"
     // =====================================================
     if (
-      //!esAdmin &&
       !global.estadoCotizacion?.[from] &&
       !adminState[from] &&
       /\bcotizar\b/.test(inputLower)
@@ -144,70 +136,39 @@ export const handleMessage = async (req, res) => {
       forceCotizar = true;
     }
 
-
-
     // =====================================================
-    // 👋 SALUDOS NATURALES (ANTES DE TODO)
+    // 👋 SALUDOS NATURALES
     // =====================================================
     const saludos = [
-      "hola",
-      "holi",
-      "hla",
-      "buenas",
-      "buen día",
-      "buen dia",
-      "buenos días",
-      "buenos dias",
-      "buenas tardes",
-      "buenas noches",
-      "holaa",
-      "buenass",
-      "saludos",
+      "hola", "holi", "hla", "buenas", "buen día", "buen dia",
+      "buenos días", "buenos dias", "buenas tardes", "buenas noches",
+      "holaa", "buenass", "saludos",
     ];
 
     const esSaludo = saludos.some(
       (saludo) => inputLower === saludo || inputLower.startsWith(saludo)
     );
-    
-    if (
-      esSaludo &&
-      !global.estadoCotizacion?.[from] &&
-      !adminState[from]
-    ) {
+
+    if (esSaludo && !global.estadoCotizacion?.[from] && !adminState[from]) {
       const saludoHora = obtenerSaludoColombia();
 
-      await enviar(from, {
-        text: {
-          body: `Hola, ${saludoHora} 😊\nEspero que estés muy bien.`,
-        },
-      });
+      await enviar(from, { text: { body: `Hola, ${saludoHora} 😊\nEspero que estés muy bien.` } });
 
-      // 👉 Si NO va a cotizar, mostramos menú y salimos
       if (!forceCotizar) {
-        await enviar(from, {
-          text: {
-            body:
-              "Escribe *Menú* en el momento que desees para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo.",
-          },
-        });
-
+        await enviar(from, { text: { body: "Escribe *Menú* en el momento que desees para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo." } });
         return res.sendStatus(200);
       }
-    } // ✅ CIERRE CORRECTO DEL IF DE SALUDO
+    }
 
     // =====================================================
     // 🟩 ENTRADA FORZADA AL FLUJO DE COTIZACIÓN
     // =====================================================
-    if (forceCotizar) {
-      input = "COTIZAR";
-    }
-
+    if (forceCotizar) input = "COTIZAR";
 
     // =====================================================
     // 🟪 SALDO (esperando dato)
     // =====================================================
     if (estado[from] === "esperando_dato_saldo") {
-      // 👇 normalizamos SOLO si parece teléfono
       let dato = text;
       if (/^\+?\d{10,15}$/.test(text)) {
         dato = normalizarTelefono(text);
@@ -262,19 +223,12 @@ export const handleMessage = async (req, res) => {
     // =====================================================
     if (esAdmin && inputLower === "/cancelar") {
       adminState[from] = { step: "cancelar_codigo" };
-
-      await enviar(from, {
-        text: {
-          body: "📌 Ingresa el *código del pedido* a cancelar",
-        },
-      });
-
+      await enviar(from, { text: { body: "📌 Ingresa el *código del pedido* a cancelar" } });
       return res.sendStatus(200);
     }
 
     if (esAdmin && adminState[from]?.step === "cancelar_codigo") {
       const orderCode = input.toUpperCase();
-
       const validacion = await obtenerPedidoActivo(orderCode);
 
       if (validacion.error === "NO_EXISTE") {
@@ -284,21 +238,17 @@ export const handleMessage = async (req, res) => {
       }
 
       if (validacion.error === "CANCELADO") {
-        await enviar(from, {
-          text: { body: "⛔ Este pedido ya está cancelado." },
-        });
+        await enviar(from, { text: { body: "⛔ Este pedido ya está cancelado." } });
         delete adminState[from];
         return res.sendStatus(200);
       }
 
-      // ✅ GUARDAMOS EL PEDIDO PARA EL SIGUIENTE PASO
       adminState[from] = {
         step: "confirmar_cancelacion",
         pedido: validacion.pedido,
       };
 
       const pedido = validacion.pedido;
-
       await enviar(from, {
         text: {
           body:
@@ -308,7 +258,6 @@ export const handleMessage = async (req, res) => {
             "Escribe *SI* para confirmar o *NO* para cancelar la acción.",
         },
       });
-
       return res.sendStatus(200);
     }
 
@@ -320,9 +269,7 @@ export const handleMessage = async (req, res) => {
         const result = await cancelarPedido(pedido.order_code);
 
         if (result === "error") {
-          await enviar(from, {
-            text: { body: "❌ Ocurrió un error al cancelar el pedido." },
-          });
+          await enviar(from, { text: { body: "❌ Ocurrió un error al cancelar el pedido." } });
           delete adminState[from];
           return res.sendStatus(200);
         }
@@ -336,17 +283,15 @@ export const handleMessage = async (req, res) => {
           },
         });
 
-        // ✅ Avisar al CLIENTE automáticamente
+        // Avisar al CLIENTE automáticamente
         if (result.numero_whatsapp) {
+          const saludoHora = obtenerSaludoColombia();
           await enviar(result.numero_whatsapp, {
             text: {
               body:
                 `Hola, ${saludoHora} 😊\n\n` +
-                `Queremos informarte que tu pedido *${result.order_code}* ` +
-                "ha sido cancelado.\n\n" +
-                (result.descripcion_trabajo
-                  ? `🛠️ Trabajo: ${result.descripcion_trabajo}\n\n`
-                  : "") +
+                `Queremos informarte que tu pedido *${result.order_code}* ha sido cancelado.\n\n` +
+                (result.descripcion_trabajo ? `🛠️ Trabajo: ${result.descripcion_trabajo}\n\n` : "") +
                 "Si tienes alguna duda o deseas retomarlo, escríbenos y con gusto te ayudamos 🤝",
             },
           });
@@ -356,87 +301,25 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // ❌ NO
-      await enviar(from, {
-        text: { body: "❎ Cancelación abortada." },
-      });
-
+      await enviar(from, { text: { body: "❎ Cancelación abortada." } });
       delete adminState[from];
       return res.sendStatus(200);
     }
 
     // =====================================================
-    // 🟩 NOTIFICACIONES CLIENTE
+    // 🟩 ADMIN: CAMBIO DE ESTADO MANUAL
     // =====================================================
-
-    async function notificarCambioEstado(pedido, enviar) {
-      // 🛡️ Validación defensiva
-      if (
-        !pedido ||
-        !pedido.estado_pedido ||
-        !pedido.order_code ||
-        !pedido.numero_whatsapp
-      ) {
-        console.error(
-          "❌ notificarCambioEstado recibió un pedido inválido:",
-          pedido
-        );
-        return;
-      }
-
-      let mensaje = null;
-      const estado = pedido.estado_pedido.toUpperCase();
-
-      if (estado === "LISTO") {
-        mensaje =
-          `Hola, ${saludoHora} 😊\n\n` +
-          `Tu pedido *${pedido.order_code}* ya está listo 🎉\n` +
-          `Cuando quieras, escríbeme y coordinamos la entrega.`;
-      }
-
-      if (estado === "ENTREGADO") {
-        mensaje =
-          `Hola 🙌\n\n` +
-          `Quería avisarte que tu pedido *${pedido.order_code}* ya fue entregado con éxito ✅\n\n` +
-          `Gracias por confiar en nosotros.\n` +
-          `Si necesitas algo más, aquí estamos 😊`;
-      }
-
-      if (!mensaje) return;
-
-      await enviar(pedido.numero_whatsapp, {
-        text: { body: mensaje },
-      });
-    }
-
-
-    // =====================================================
-    // =====================================================
-    // 🟩 ADMIN: CAMBIO DE ESTADO MANUAL (ÚNICO)
-    // =====================================================
-
-    const comandosEstado = {
-      "/listo": "LISTO",
-      "/entregado": "ENTREGADO",
-    };
+    const comandosEstado = { "/listo": "LISTO", "/entregado": "ENTREGADO" };
 
     if (esAdmin && comandosEstado[inputLower]) {
-      adminState[from] = {
-        step: "estado_codigo",
-        nuevoEstado: comandosEstado[inputLower],
-      };
-
-      await enviar(from, {
-        text: { body: "📌 Ingresa el *código del pedido*" },
-      });
-
+      adminState[from] = { step: "estado_codigo", nuevoEstado: comandosEstado[inputLower] };
+      await enviar(from, { text: { body: "📌 Ingresa el *código del pedido*" } });
       return res.sendStatus(200);
     }
 
     if (esAdmin && adminState[from]?.step === "estado_codigo") {
       const orderCode = input.toUpperCase();
       const nuevoEstado = adminState[from].nuevoEstado;
-
       const validacion = await obtenerPedidoActivo(orderCode);
 
       if (validacion.error === "NO_EXISTE") {
@@ -446,107 +329,77 @@ export const handleMessage = async (req, res) => {
       }
 
       if (validacion.error === "CANCELADO") {
-        await enviar(from, {
-          text: { body: "⛔ Este pedido está CANCELADO y no admite cambios." },
-        });
+        await enviar(from, { text: { body: "⛔ Este pedido está CANCELADO y no admite cambios." } });
         delete adminState[from];
         return res.sendStatus(200);
       }
 
       if (validacion.error === "FINALIZADO" && nuevoEstado !== "ENTREGADO") {
-        await enviar(from, {
-          text: {
-            body:
-              "⚠️ Este pedido ya fue finalizado.\n\n" +
-              "No se puede cambiar su estado.",
-          },
-        });
+        await enviar(from, { text: { body: "⚠️ Este pedido ya fue finalizado.\nNo se puede cambiar su estado." } });
         delete adminState[from];
         return res.sendStatus(200);
       }
 
-      // ✅ ACTUALIZAR
       const pedido = await actualizarEstadoPedido(orderCode, nuevoEstado);
-
       if (!pedido) {
-        await enviar(from, {
-          text: {
-            body:
-              "❌ No se pudo actualizar el estado del pedido.\n\n" +
-              "Verifica que no esté cancelado.",
-          },
-        });
+        await enviar(from, { text: { body: "❌ No se pudo actualizar el estado del pedido.\nVerifica que no esté cancelado." } });
         delete adminState[from];
         return res.sendStatus(200);
       }
 
-      // 📩 NOTIFICAR CLIENTE
-      await notificarCambioEstado(pedido, enviar);
+      // Notificar cliente
+      async function notificarCambioEstado(pedido, enviar) {
+        if (!pedido || !pedido.estado_pedido || !pedido.order_code || !pedido.numero_whatsapp) return;
 
+        const estado = pedido.estado_pedido.toUpperCase();
+        const saludoHora = obtenerSaludoColombia();
+        let mensaje = null;
+
+        if (estado === "LISTO") {
+          mensaje = `Hola, ${saludoHora} 😊\n\nTu pedido *${pedido.order_code}* ya está listo 🎉\nCuando quieras, escríbeme y coordinamos la entrega.`;
+        }
+        if (estado === "ENTREGADO") {
+          mensaje = `Hola 🙌\n\nQuería avisarte que tu pedido *${pedido.order_code}* ya fue entregado con éxito ✅\nGracias por confiar en nosotros.`;
+        }
+
+        if (mensaje) await enviar(pedido.numero_whatsapp, { text: { body: mensaje } });
+      }
+
+      await notificarCambioEstado(pedido, enviar);
       delete adminState[from];
 
-      // ✅ CONFIRMACIÓN ADMIN
-      await enviar(from, {
-        text: {
-          body:
-            `✅ *Estado actualizado*\n\n` +
-            `Pedido: ${pedido.order_code}\n` +
-            `Nuevo estado: ${nuevoEstado.replace("_", " ")}`,
-        },
-      });
-
+      await enviar(from, { text: { body: `✅ *Estado actualizado*\n\nPedido: ${pedido.order_code}\nNuevo estado: ${nuevoEstado.replace("_", " ")}` } });
       return res.sendStatus(200);
     }
-  
 
     // =====================================================
-    // 🟩 ADMIN: ANTICIPO
+    // 🟩 ADMIN: ANTICIPO / ABONO
     // =====================================================
-
     if (esAdmin && inputLower === "/abono") {
       adminState[from] = { step: "anticipo_codigo" };
-
-      await enviar(from, {
-        text: {
-          body: "📌 Ingresa el *código del pedido*",
-        },
-      });
-
+      await enviar(from, { text: { body: "📌 Ingresa el *código del pedido*" } });
       return res.sendStatus(200);
     }
 
     if (esAdmin && adminState[from]?.step === "anticipo_codigo") {
       const codigo = input.toUpperCase();
-
       const validacion = await obtenerPedidoActivo(codigo);
 
       if (validacion.error === "NO_EXISTE") {
-        await enviar(from, {
-          text: { body: "❌ El pedido no existe." },
-        });
+        await enviar(from, { text: { body: "❌ El pedido no existe." } });
         delete adminState[from];
         return res.sendStatus(200);
       }
 
       if (validacion.error === "CANCELADO") {
-        await enviar(from, {
-          text: { body: "❌ Este pedido está CANCELADO y no admite cambios." },
-        });
+        await enviar(from, { text: { body: "❌ Este pedido está CANCELADO y no admite cambios." } });
         delete adminState[from];
         return res.sendStatus(200);
       }
 
       const pedido = validacion.pedido;
-
-      // ✅ VALIDACIÓN CLAVE: ya está pagado
       if (Number(pedido.saldo_pendiente) <= 0) {
-        await enviar(from, {
-          text: {
-            body:
-              "✅ Este pedido ya se encuentra *completamente pagado*.\n\n" +
-              "No es posible registrar más anticipos.",
-          },
-        });
+        await enviar(from, { text: { body: "✅ Este pedido ya se encuentra *completamente pagado*.\nNo es posible registrar más anticipos." } });
         delete adminState[from];
         return res.sendStatus(200);
       }
@@ -554,16 +407,7 @@ export const handleMessage = async (req, res) => {
       adminState[from].orderCode = codigo;
       adminState[from].step = "anticipo_valor";
 
-      await enviar(from, {
-        text: {
-          body:
-            `💵 Ingresa el *valor abonado*\n` +
-            `Saldo pendiente: $${Number(
-              pedido.saldo_pendiente
-            ).toLocaleString()}`,
-        },
-      });
-
+      await enviar(from, { text: { body: `💵 Ingresa el *valor abonado*\nSaldo pendiente: $${Number(pedido.saldo_pendiente).toLocaleString()}` } });
       return res.sendStatus(200);
     }
 
@@ -571,47 +415,26 @@ export const handleMessage = async (req, res) => {
       const base = Number(input.replace(/[^\d]/g, ""));
       const valor = base * 1000;
 
-
       if (!valor || valor <= 0) {
-        await enviar(from, {
-          text: {
-            body: "❌ Valor inválido. Ingresa solo números.",
-          },
-        });
+        await enviar(from, { text: { body: "❌ Valor inválido. Ingresa solo números." } });
         return res.sendStatus(200);
       }
 
       const result = await registrarAnticipo(adminState[from].orderCode, valor);
 
-      // ❌ Excede saldo
       if (result?.error === "EXCEDE_SALDO") {
-        await enviar(from, {
-          text: {
-            body:
-              `❌ El valor ingresado excede el saldo pendiente.\n\n` +
-              `Saldo actual: $${Number(result.saldo).toLocaleString()}`,
-          },
-        });
+        await enviar(from, { text: { body: `❌ El valor ingresado excede el saldo pendiente.\nSaldo actual: $${Number(result.saldo).toLocaleString()}` } });
         return res.sendStatus(200);
       }
 
-      // ✅ Ya estaba pagado (corte total del flujo)
       if (result?.error === "PAGADO") {
-        await enviar(from, {
-          text: {
-            body: "✅ Este pedido ya se encuentra completamente pagado.",
-          },
-        });
+        await enviar(from, { text: { body: "✅ Este pedido ya se encuentra completamente pagado." } });
         delete adminState[from];
         return res.sendStatus(200);
       }
 
       if (!result) {
-        await enviar(from, {
-          text: {
-            body: "❌ No se pudo registrar el anticipo. Verifica el código.",
-          },
-        });
+        await enviar(from, { text: { body: "❌ No se pudo registrar el anticipo. Verifica el código." } });
         delete adminState[from];
         return res.sendStatus(200);
       }
@@ -622,123 +445,68 @@ export const handleMessage = async (req, res) => {
       await enviar(from, {
         text: {
           body:
-            `✅ *Anticipo registrado*\n\n` +
-            `Pedido: ${result.order_code}\n` +
-            `Abonado total: $${Number(
-              result.valor_abonado
-            ).toLocaleString()}\n` +
-            `Saldo pendiente: $${Number(
-              result.saldo_pendiente
-            ).toLocaleString()}`,
-        },
+            `✅ *Anticipo registrado*\n\nPedido: ${result.order_code}\nAbonado total: $${Number(result.valor_abonado).toLocaleString()}\nSaldo pendiente: $${Number(result.saldo_pendiente).toLocaleString()}`
+        }
       });
 
       // ✅ Mensaje al CLIENTE
-      let mensajeCliente =
-        `💳 *Hemos recibido tu abono*\n\n` +
-        `Pedido: ${result.order_code}\n` +
-        `Abono recibido: $${valor.toLocaleString()}\n` +
-        `Saldo pendiente: $${Number(
-          result.saldo_pendiente
-        ).toLocaleString()}\n\n` +
-        `Gracias por tu pago 🙌`;
-
+      let mensajeCliente = `💳 *Hemos recibido tu abono*\n\nPedido: ${result.order_code}\nAbono recibido: $${valor.toLocaleString()}\nSaldo pendiente: $${Number(result.saldo_pendiente).toLocaleString()}\n\nGracias por tu pago 🙌`;
       if (Number(result.saldo_pendiente) <= 0) {
-        mensajeCliente =
-          `🎉 *¡Pago completado!*\n\n` +
-          `Tu pedido *${result.order_code}* ya se encuentra completamente pagado.\n` +
-          `¡Gracias por confiar en Muebles Nico!`;
+        mensajeCliente = `🎉 *¡Pago completado!*\n\nTu pedido *${result.order_code}* ya se encuentra completamente pagado.\n¡Gracias por confiar en Muebles Nico!`;
       }
 
-      await enviar(result.numero_whatsapp, {
-        text: {
-          body: mensajeCliente,
-        },
-      });
-
+      await enviar(result.numero_whatsapp, { text: { body: mensajeCliente } });
       return res.sendStatus(200);
     }
 
     // =====================================================
-    // 🟦 CLIENTE: OPCIONES MENÚ
+    // 🟦 CLIENTE: FLUJO COTIZACIÓN
     // =====================================================
-    // ✋ Si el cliente vuelve a escribir, cancelamos mensaje pendiente
-    if (global.cotizacionTimers?.[from]) {
-      clearTimeout(global.cotizacionTimers[from]);
-      delete global.cotizacionTimers[from];
-    }
-
     if (input === "COTIZAR") {
-      // iniciamos estado de cotización para este cliente
       global.estadoCotizacion = global.estadoCotizacion || {};
       global.estadoCotizacion[from] = { step: "tipoTrabajo" };
 
-      // mensaje 1: aclaración
+      // Mensaje inicial
       await enviar(from, {
         text: {
           body:
-            "🪑 *Ten en cuenta qué*\n\n" +
-            "Para los muebles que requieren *tapicería*:\n" +
-            "• Se cobra únicamente la *mano de obra*.\n" +
-            "• Los materiales los adquiere el cliente, ya que su precio varía según diseño y calidad.(yo te indico cuales serian)\n\n" +
-            "Fabricamos y también *restauramos* muebles.\n\n",
-        },
+            "🪑 *Ten en cuenta qué*\n\nPara los muebles que requieren *tapicería*:\n• Se cobra únicamente la *mano de obra*.\n• Los materiales los adquiere el cliente, ya que su precio varía según diseño y calidad.(yo te indico cuales serían)\n\nFabricamos y también *restauramos* muebles.\n\n"
+        }
       });
 
-      // mensaje 2: clasificación del trabajo
       await enviar(from, {
         text: {
           body:
-            "¿Qué es lo que necesitas hacer? 👇\n\n" +
-            "1️⃣ Fabricar un mueble nuevo\n" +
-            "2️⃣ Restaurar o tapizar un mueble\n" +
-            "3️⃣ Otro arreglo (reparaciones, rieles, chapas, instalación, etc.)\n\n" +
-            "Respóndeme con el número o escríbelo con tus propias palabras.",
-        },
+            "¿Qué es lo que necesitas hacer? 👇\n1️⃣ Fabricar un mueble nuevo\n2️⃣ Restaurar o tapizar un mueble\n3️⃣ Otro arreglo (reparaciones, rieles, chapas, instalación, etc.)\n\nRespóndeme con el número o escríbelo con tus propias palabras."
+        }
       });
 
       return res.sendStatus(200);
     }
 
-    // =====================================================
-    // 🧠 RESPUESTAS DEL FLUJO DE COTIZACIÓN
-    // =====================================================
     if (global.estadoCotizacion?.[from]) {
       const estado = global.estadoCotizacion[from];
 
-      // paso 1: tipo de trabajo
       if (estado.step === "tipoTrabajo") {
         const textLower = inputLower;
-
-        if (["1", "fabricar", "nuevo"].some((x) => textLower.includes(x))) {
+        if (["1", "fabricar", "nuevo"].some(x => textLower.includes(x))) {
           await enviar(from, {
             text: {
               body:
-                "🔹 *Fabricar mueble nuevo*\n\n" +
-                "Cuéntame qué mueble tienes en mente 😊\n" +
-                "Puedes enviarme:\n" +
-                "• Fotos o referencias\n" +
-                "• Medidas aproximadas\n\n" +
-                "Si no estás segur@, también podemos asesorarte.",
-            },
+                "🔹 *Fabricar mueble nuevo*\nCuéntame qué mueble tienes en mente 😊\nPuedes enviarme:\n• Fotos o referencias\n• Medidas aproximadas\n\nSi no estás segur@, también podemos asesorarte."
+            }
           });
-
           estado.step = "detalleTrabajo";
           estado.tipo = "fabricar";
           return res.sendStatus(200);
         }
-
-        if (["2", "restaurar", "tapizar"].some((x) => textLower.includes(x))) {
+        if (["2", "restaurar", "tapizar"].some(x => textLower.includes(x))) {
           await enviar(from, {
             text: {
               body:
-                "🔹 *Restaurar o tapizar*\n\n" +
-                "Envíame por favor:\n" +
-                "• Fotos actuales del mueble\n" +
-                "• Qué te gustaría cambiar o mejorar",
-            },
+                "🔹 *Restaurar o tapizar*\nEnvíame por favor:\n• Fotos actuales del mueble\n• Qué te gustaría cambiar o mejorar"
+            }
           });
-
           estado.step = "detalleTrabajo";
           estado.tipo = "restaurar";
           return res.sendStatus(200);
@@ -747,65 +515,41 @@ export const handleMessage = async (req, res) => {
         await enviar(from, {
           text: {
             body:
-              "🔹 *Otro arreglo*\n\n" +
-              "Cuéntame qué necesitas hacer y, si es posible,\n" +
-              "envíame una foto del área o mueble.",
-          },
+              "🔹 *Otro arreglo*\nCuéntame qué necesitas hacer y, si es posible,\nenvíame una foto del área o mueble."
+          }
         });
-
         estado.step = "detalleTrabajo";
         estado.tipo = "otro";
         return res.sendStatus(200);
       }
 
-      // ✅ PASO FINAL DEL FLUJO
       if (estado.step === "detalleTrabajo") {
-        // 🕒 programamos mensaje diferido
         programarMensajeAsesor(from);
-
-        // 🔚 cerramos flujo
         delete global.estadoCotizacion[from];
         return res.sendStatus(200);
       }
     }
 
     // =====================================================
-    // 📦 CLIENTE: ESTADO DE PEDIDO
+    // 💰 CLIENTE: ESTADO DE PEDIDO
     // =====================================================
     if (input === "PEDIDO") {
       const pedidos = await getPedidosByPhone(from);
-
       if (!Array.isArray(pedidos) || pedidos.length === 0) {
-        await enviar(from, {
-          text: {
-            body: "📭 No encontramos pedidos activos asociados a este número.",
-          },
-        });
+        await enviar(from, { text: { body: "📭 No encontramos pedidos activos asociados a este número." } });
         return res.sendStatus(200);
       }
 
-      // 🟢 UN SOLO PEDIDO
       if (pedidos.length === 1) {
         const pedido = pedidos[0];
-
-        // ✅ PEDIDO YA ENTREGADO
         if (pedido.estado_pedido === "ENTREGADO") {
-          await enviar(from, {
-            text: {
-              body:
-                "✅ Este pedido ya fue entregado 🙌\n\n" +
-                "Si necesitas algo más o tienes alguna duda, escríbeme con confianza 😊",
-            },
-          });
+          await enviar(from, { text: { body: "✅ Este pedido ya fue entregado 🙌\nSi necesitas algo más o tienes alguna duda, escríbeme con confianza 😊" } });
           return res.sendStatus(200);
         }
-
-        // 📦 Pedido activo normal
         await enviar(from, estadoPedidoTemplate(pedido));
         return res.sendStatus(200);
       }
 
-      // 🟢 VARIOS PEDIDOS → selector
       await enviar(from, seleccionarPedidoEstado(pedidos));
       return res.sendStatus(200);
     }
@@ -815,36 +559,21 @@ export const handleMessage = async (req, res) => {
     // =====================================================
     if (input === "SALDO") {
       const pedidos = await consultarSaldo(from);
-
-      if (pedidos?.error || !Array.isArray(pedidos) || pedidos.length === 0) {
-        await enviar(from, {
-          text: {
-            body: "📭 No encontramos pedidos activos asociados a este número.",
-          },
-        });
+      if (!Array.isArray(pedidos) || pedidos.length === 0) {
+        await enviar(from, { text: { body: "📭 No encontramos pedidos activos asociados a este número." } });
         return res.sendStatus(200);
       }
 
-      // 🟢 UN SOLO PEDIDO
       if (pedidos.length === 1) {
         const pedido = pedidos[0];
-
         if (Number(pedido.saldo) === 0) {
-          await enviar(from, {
-            text: {
-              body:
-                "💚 Este pedido ya fue pagado en su totalidad.\n\n" +
-                "Actualmente se encuentra en proceso o pendiente de entrega 🙌",
-            },
-          });
+          await enviar(from, { text: { body: "💚 Este pedido ya fue pagado en su totalidad.\nActualmente se encuentra en proceso o pendiente de entrega 🙌" } });
           return res.sendStatus(200);
         }
-
         await enviar(from, saldoUnPedido(pedido));
         return res.sendStatus(200);
       }
 
-      // 🟢 VARIOS PEDIDOS
       await enviar(from, seleccionarPedidoSaldo(pedidos));
       return res.sendStatus(200);
     }
@@ -857,130 +586,37 @@ export const handleMessage = async (req, res) => {
       return res.sendStatus(200);
     }
 
+    // =====================================================
+    // 🛡 CLIENTE: GARANTÍA
+    // =====================================================
     if (input === "GARANTIA") {
       await enviar(from, {
         text: {
           body:
-            "🛡️ *GARANTÍA MUEBLES NICO*\n\n" +
-            "Todos nuestros trabajos cuentan con *1 año de garantía*.\n\n" +
-            "*La garantía cubre:*\n\n" +
-            "• Defectos de fábrica en el material\n" +
-            "• Problemas de instalación realizados por nosotros\n\n" +
-            "*La garantía no cubre:*\n\n" +
-            "• Humedad\n" +
-            "• Golpes o mal uso\n" +
-            "• Intervenciones de terceros\n\n" +
-            "🤝 Si llegas a tener algún inconveniente, con gusto lo revisamos y te damos solución de la manera más rápida posible.",
-        },
+            "🛡️ *GARANTÍA MUEBLES NICO*\n\nTodos nuestros trabajos cuentan con *1 año de garantía*.\n\n*La garantía cubre:*\n• Defectos de fábrica en el material\n• Problemas de instalación realizados por nosotros\n\n*La garantía no cubre:*\n• Humedad\n• Golpes o mal uso\n• Intervenciones de terceros\n\n🤝 Si llegas a tener algún inconveniente, con gusto lo revisamos y te damos solución de la manera más rápida posible."
+        }
       });
       return res.sendStatus(200);
     }
 
+    // =====================================================
+    // ⏳ CLIENTE: TIEMPOS
+    // =====================================================
     if (input === "TIEMPOS") {
       await enviar(from, {
         text: {
           body:
-            "⏳ Sobre los tiempos de entrega\n\n" +
-            "El tiempo estimado de fabricación y entrega es de *hasta 15 días habiles* desde la confirmación del anticipo.\n\n" +
-            "Este tiempo puede variar según el tipo de trabajo y la carga del taller, y en muchos casos el pedido puede estar listo antes.\n\n" +
-            "Cuando tu pedido esté terminado, te contactaremos para coordinar la entrega o instalación.😊\n\n" +
-            "Gracias por confiar en *Muebles Nico* 🙌",
-        },
+            "⏳ Sobre los tiempos de entrega\n\nEl tiempo estimado de fabricación y entrega es de *hasta 15 días hábiles* desde la confirmación del anticipo.\nEste tiempo puede variar según el tipo de trabajo y la carga del taller.\n\nCuando tu pedido esté terminado, te contactaremos para coordinar la entrega o instalación.😊\n\nGracias por confiar en *Muebles Nico* 🙌"
+        }
       });
       return res.sendStatus(200);
     }
 
+    // =====================================================
+    // 📞 CLIENTE: SOLICITAR ASESOR
+    // =====================================================
     if (input === "ASESOR") {
-      await enviar(from, {
-        text: { body: "📞 Un asesor te contactará pronto." },
-      });
-      return res.sendStatus(200);
-    }
-    // =====================================================
-    // 💰 CLIENTE: SELECCIÓN DE PEDIDO DESDE SALDO
-    // =====================================================
-    if (typeof input === "string" && input.startsWith("SALDO_")) {
-      const id = input.replace("SALDO_", "").trim();
-
-      if (!/^\d+$/.test(id)) return res.sendStatus(200);
-
-      const pedidos = await consultarSaldo(from);
-
-      if (!Array.isArray(pedidos)) {
-        await enviar(from, {
-          text: { body: "❌ No pudimos obtener la información del pedido." },
-        });
-        return res.sendStatus(200);
-      }
-
-      const pedido = pedidos.find((p) => String(p.id) === id);
-
-      if (!pedido) {
-        await enviar(from, {
-          text: {
-            body: "❌ Pedido no encontrado o no pertenece a este número.",
-          },
-        });
-        return res.sendStatus(200);
-      }
-
-      if (Number(pedido.saldo) === 0) {
-        await enviar(from, {
-          text: {
-            body:
-              "💚 Este pedido ya fue pagado en su totalidad.\n\n" +
-              "Actualmente se encuentra en proceso o pendiente de entrega 🙌",
-          },
-        });
-        return res.sendStatus(200);
-      }
-
-      await enviar(from, saldoUnPedido(pedido));
-      return res.sendStatus(200);
-    }
-
-    // =====================================================
-    // 📦 CLIENTE: SELECCIÓN DE PEDIDO DESDE ESTADO
-    // =====================================================
-    if (typeof input === "string" && input.startsWith("PEDIDO_")) {
-      const id = input.replace("PEDIDO_", "").trim();
-
-      if (!/^\d+$/.test(id)) return res.sendStatus(200);
-
-      const pedidos = await getPedidosByPhone(from);
-
-      if (!Array.isArray(pedidos)) {
-        await enviar(from, {
-          text: { body: "❌ No pudimos obtener la información del pedido." },
-        });
-        return res.sendStatus(200);
-      }
-
-      const pedido = pedidos.find((p) => String(p.id) === id);
-
-      if (!pedido) {
-        await enviar(from, {
-          text: {
-            body: "❌ Pedido no encontrado o no pertenece a este número.",
-          },
-        });
-        return res.sendStatus(200);
-      }
-
-      // ✅ PEDIDO YA ENTREGADO
-      if (pedido.estado_pedido === "ENTREGADO") {
-        await enviar(from, {
-          text: {
-            body:
-              "✅ Este pedido ya fue entregado 🙌\n\n" +
-              "Si necesitas algo más o tienes alguna duda, escríbeme con confianza 😊",
-          },
-        });
-        return res.sendStatus(200);
-      }
-
-      // 📦 Pedido activo normal
-      await enviar(from, estadoPedidoTemplate(pedido));
+      await enviar(from, { text: { body: "📞 Un asesor te contactará pronto." } });
       return res.sendStatus(200);
     }
 

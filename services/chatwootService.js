@@ -18,8 +18,6 @@ const headers = {
 
 /**
  * Convierte cualquier número a E.164 Colombia
- * Recibe: 3204128555 | 573204128555 | +573204128555
- * Devuelve: +573204128555
  */
 function toE164(phone) {
     let p = String(phone).replace(/\D/g, "");
@@ -40,7 +38,6 @@ function toE164(phone) {
  */
 async function getOrCreateContact(e164, name) {
     try {
-        // 🔍 Buscar primero
         const search = await axios.get(
             `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/search?q=${encodeURIComponent(
                 e164
@@ -48,19 +45,14 @@ async function getOrCreateContact(e164, name) {
             { headers }
         );
 
-        if (search.data?.payload?.length > 0) {
+        if (Array.isArray(search.data?.payload) && search.data.payload.length > 0) {
             return search.data.payload[0].id;
         }
     } catch (_) { }
 
-    // ➕ Crear si no existe
     const res = await axios.post(
         `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts`,
-        {
-            name: name || e164,
-            identifier: e164,
-            phone_number: e164,
-        },
+        { name: name || e164, identifier: e164, phone_number: e164 },
         { headers }
     );
 
@@ -71,18 +63,17 @@ async function getOrCreateContact(e164, name) {
  * Busca o crea conversación
  */
 async function getOrCreateConversation(e164, contactId) {
-    // Cache local
     if (conversationCache.has(e164)) {
         return conversationCache.get(e164);
     }
 
-    // Buscar en Chatwoot (Cloud)
     const search = await axios.get(
         `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations?inbox_id=${INBOX_ID}&contact_id=${contactId}`,
         { headers }
     );
 
-    const conversations = search.data?.data?.payload || [];
+    // 🔹 FIX: la API devuelve un array en data directamente
+    const conversations = Array.isArray(search.data?.data) ? search.data.data : [];
 
     const existing = conversations.find(
         (c) => c.meta?.sender?.phone_number === e164
@@ -93,22 +84,16 @@ async function getOrCreateConversation(e164, contactId) {
         return existing.id;
     }
 
-    // Crear nueva
+    // Crear nueva conversación
     const convo = await axios.post(
         `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`,
-        {
-            inbox_id: INBOX_ID,
-            contact_id: contactId,
-            source_id: e164,
-        },
+        { inbox_id: INBOX_ID, contact_id: contactId, source_id: e164 },
         { headers }
     );
 
-    const id = convo.data.id;
-    conversationCache.set(e164, id);
-    return id;
+    conversationCache.set(e164, convo.data.id);
+    return convo.data.id;
 }
-
 
 /**
  * 📥 CLIENTE → Chatwoot
@@ -124,17 +109,11 @@ export async function forwardToChatwoot(phone, name, text) {
 
         await axios.post(
             `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
-            {
-                content: text,
-                message_type: "incoming",
-            },
+            { content: text, message_type: "incoming" },
             { headers }
         );
-    } catch (error) {
-        console.error(
-            "❌ Chatwoot CLIENTE:",
-            error.response?.data || error.message
-        );
+    } catch (err) {
+        console.error("❌ Chatwoot CLIENTE:", err.response?.data || err.message);
     }
 }
 
@@ -144,25 +123,39 @@ export async function forwardToChatwoot(phone, name, text) {
 export async function sendBotMessageToChatwoot(phone, text) {
     try {
         const e164 = toE164(phone);
+        let conversationId = conversationCache.get(e164);
 
-        const contactId = await getOrCreateContact(e164);
-        const conversationId = await getOrCreateConversation(e164, contactId);
+        if (!conversationId) {
+            console.log(
+                "⚠️ No existe conversación para",
+                e164,
+                "Se crea automáticamente..."
+            );
 
-        console.log("🤖 Bot → Chatwoot:", e164, text);
+            // Crear contacto si no existe
+            const contactId = await getOrCreateContact(e164, phone);
+
+            // Crear conversación
+            const convoRes = await axios.post(
+                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`,
+                { inbox_id: INBOX_ID, contact_id: contactId, source_id: e164 },
+                { headers }
+            );
+
+            conversationId = convoRes.data.id;
+            conversationCache.set(e164, conversationId);
+        }
+
+        console.log("🤖 Enviando mensaje del bot a conversación", conversationId);
 
         await axios.post(
             `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
-            {
-                content: text,
-                message_type: "outgoing",
-                private: false,
-            },
+            { content: text, message_type: "outgoing", private: false },
             { headers }
         );
-    } catch (error) {
-        console.error(
-            "❌ Chatwoot BOT:",
-            error.response?.data || error.message
-        );
+
+        console.log("✅ Mensaje del bot enviado a Chatwoot");
+    } catch (err) {
+        console.error("❌ Chatwoot BOT:", err.response?.data || err.message);
     }
 }
