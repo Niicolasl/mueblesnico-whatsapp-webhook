@@ -71,18 +71,20 @@ async function getOrCreateContact(e164, name) {
  * Busca o crea conversación
  */
 async function getOrCreateConversation(e164, contactId) {
-    // Cache
+    // Cache local
     if (conversationCache.has(e164)) {
         return conversationCache.get(e164);
     }
 
-    // Buscar en Chatwoot
+    // Buscar en Chatwoot (Cloud)
     const search = await axios.get(
         `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations?inbox_id=${INBOX_ID}&contact_id=${contactId}`,
         { headers }
     );
 
-    const existing = search.data?.data?.find(
+    const conversations = search.data?.data?.payload || [];
+
+    const existing = conversations.find(
         (c) => c.meta?.sender?.phone_number === e164
     );
 
@@ -106,6 +108,7 @@ async function getOrCreateConversation(e164, contactId) {
     conversationCache.set(e164, id);
     return id;
 }
+
 
 /**
  * 📥 CLIENTE → Chatwoot
