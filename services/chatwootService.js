@@ -1,10 +1,11 @@
 import axios from "axios";
 
-const CHATWOOT_BASE = "https://app.chatwoot.com";
 const CHATWOOT_TOKEN = process.env.CHATWOOT_API_TOKEN;
 
-const ACCOUNT_ID = 147542;
-const INBOX_ID = 91192;
+const CHATWOOT_BASE = process.env.CHATWOOT_BASE;
+const ACCOUNT_ID = process.env.CHATWOOT_ACCOUNT_ID;
+const INBOX_ID = process.env.CHATWOOT_INBOX_ID;
+
 
 // Cache simple en memoria para no recrear conversaciones
 const conversationCache = new Map();
