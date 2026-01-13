@@ -83,16 +83,27 @@ export const handleMessage = async (req, res) => {
     const contact = changes?.value?.contacts?.[0];
     const profileName = contact?.profile?.name || null;
 
-
     if (!message) return res.sendStatus(200);
 
     // 📞 Número entrante normalizado (SIN 57)
     const from = normalizarTelefono(message.from);
+
+    // 📞 Número en formato E.164 para servicios externos (Chatwoot, WhatsApp API)
+    const fromE164 = telefonoParaWhatsApp(from); // ej: 573204128555
+
     let text = message.text?.body?.trim() || "";
+
     const client = await getOrCreateClient(from, profileName);
+
+    // 🛡️ Enviamos a Chatwoot SIN permitir que rompa el bot
     if (text) {
-      await forwardToChatwoot(from, client.name, text);
+      try {
+        await forwardToChatwoot(fromE164, client.name, text);
+      } catch (err) {
+        console.error("⚠️ Chatwoot falló pero el bot sigue:", err?.message || err);
+      }
     }
+
 
     // ✋ Cancelamos SOLO si el cliente sigue en el flujo de cotización
     if (global.estadoCotizacion?.[from] && global.cotizacionTimers?.[from]) {
