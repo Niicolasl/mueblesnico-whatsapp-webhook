@@ -1,33 +1,43 @@
 import axios from "axios";
+import 'dotenv/config';
 
 const token = process.env.WHATSAPP_TOKEN;
-const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID; // ID del número, NO el número mismo
+const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
-/**
- * Envía un mensaje a WhatsApp Cloud API
- * @param {string} to Número destino en formato E.164 (ej: 573204128555)
- * @param {object} payload { text: { body: "mensaje" } } o { interactive: {...} }
- */
+if (!token || !phoneNumberId) {
+  console.error("❌ ERROR: WHATSAPP_TOKEN o WHATSAPP_PHONE_NUMBER_ID no están definidos en el .env");
+  process.exit(1); // termina el script para evitar enviar requests inválidos
+}
+
 export const sendMessage = async (to, payload) => {
-  try {
-    if (!to || !payload) {
-      console.error("❌ sendMessage requiere 'to' y 'payload'");
-      return;
-    }
+  if (!to) {
+    console.error("❌ ERROR: Número de destino no proporcionado");
+    return;
+  }
 
+  if (!payload) {
+    console.error("❌ ERROR: Payload no proporcionado");
+    return;
+  }
+
+  try {
     const body = {
       messaging_product: "whatsapp",
       to,
     };
 
+    // ✅ Mensaje interactivo
     if (payload?.interactive) {
       body.type = "interactive";
       body.interactive = payload.interactive;
-    } else if (payload?.text) {
+    }
+    // ✅ Mensaje de texto
+    else if (payload?.text) {
       body.type = "text";
       body.text = payload.text;
-    } else {
-      console.error("❌ PAYLOAD INVÁLIDO:", payload);
+    }
+    else {
+      console.error("❌ ERROR: Payload inválido", payload);
       return;
     }
 
@@ -44,12 +54,21 @@ export const sendMessage = async (to, payload) => {
       }
     );
 
-    console.log("✅ Mensaje enviado:", response.data);
+    console.log("✅ Mensaje enviado correctamente:", response.data);
     return response.data;
   } catch (error) {
-    // 🛡️ Manejo completo de error
     if (error.response) {
-      console.error("❌ ERROR WHATSAPP:", error.response.status, error.response.data);
+      console.error(
+        "❌ ERROR WHATSAPP:",
+        error.response.status,
+        error.response.data
+      );
+      if (error.response.status === 401) {
+        console.error("⚠️ TOKEN INVÁLIDO: Revisa que WHATSAPP_TOKEN sea correcto y esté activo");
+      }
+      if (error.response.status === 404) {
+        console.error("⚠️ PHONE_NUMBER_ID incorrecto o endpoint mal configurado");
+      }
     } else {
       console.error("❌ ERROR WHATSAPP:", error.message);
     }

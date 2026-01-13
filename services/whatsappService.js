@@ -4,10 +4,6 @@ import {
   newOrderState,
 } from "../flows/newOrderFlow.js";
 
-// ⏱️ Timers de cotización (por cliente)
-global.cotizacionTimers = global.cotizacionTimers || {};
-global.estadoCotizacion = global.estadoCotizacion || {};
-
 import { getOrCreateClient } from "../db/clients.js";
 import { consultarSaldo } from "../db/consultarSaldo.js";
 import { registrarAnticipo } from "../db/anticipo.js";
@@ -15,6 +11,7 @@ import { cancelarPedido } from "../db/cancelarPedido.js";
 import { obtenerPedidoActivo } from "../db/validarPedidoActivo.js";
 import { actualizarEstadoPedido } from "../db/actualizarEstadoPedido.js";
 import { getPedidosByPhone } from "../db/orders.js";
+
 import { obtenerSaludoColombia } from "../utils/saludos.js";
 import { forwardToChatwoot, sendBotMessageToChatwoot } from "../services/chatwootService.js";
 
@@ -32,29 +29,39 @@ import {
 import { sendMessage } from "./whatsappSender.js";
 import { normalizarTelefono, telefonoParaWhatsApp } from "../utils/phone.js";
 
+// =====================================================
+// 🌐 Variables globales
+// =====================================================
+global.cotizacionTimers = global.cotizacionTimers || {};
+global.estadoCotizacion = global.estadoCotizacion || {};
+global.estadoCliente = global.estadoCliente || {};
+
 const ADMINS = ["3204128555", "3125906313"];
 const adminState = {};
-
-// 🔧 Helper envío
+// 🔧 Helper para enviar mensajes a WhatsApp y opcionalmente a Chatwoot
 const enviar = async (to, payload, logChatwoot = true) => {
   const toWhatsapp = telefonoParaWhatsApp(to);
 
-  if (payload?.type === "interactive") {
-    await sendMessage(toWhatsapp, {
-      type: "interactive",
-      interactive: payload.interactive,
-    });
-  } else {
-    await sendMessage(toWhatsapp, payload);
-  }
-
-  // 🔹 Registrar mensaje en Chatwoot
-  if (logChatwoot && payload?.text?.body) {
-    try {
-      await sendBotMessageToChatwoot(toWhatsapp, payload.text.body);
-    } catch (err) {
-      console.error("⚠️ Error registrando mensaje BOT en Chatwoot:", err.message || err);
+  try {
+    if (payload?.type === "interactive") {
+      await sendMessage(toWhatsapp, {
+        type: "interactive",
+        interactive: payload.interactive,
+      });
+    } else {
+      await sendMessage(toWhatsapp, payload);
     }
+
+    // 🔹 Registrar mensaje en Chatwoot si es texto
+    if (logChatwoot && payload?.text?.body) {
+      try {
+        await sendBotMessageToChatwoot(toWhatsapp, payload.text.body);
+      } catch (err) {
+        console.error("⚠️ Error registrando mensaje BOT en Chatwoot:", err.message || err);
+      }
+    }
+  } catch (err) {
+    console.error("❌ Error enviando mensaje a WhatsApp:", err.message || err);
   }
 };
 
@@ -66,18 +73,14 @@ const programarMensajeAsesor = async (from) => {
 
   global.cotizacionTimers[from] = setTimeout(async () => {
     const body =
-      "¡Gracias por la información! 😊" +
+      "¡Gracias por la información! 😊 " +
       "Ya tenemos todo lo necesario para continuar con tu cotización. " +
-      "Apenas esté disponible, me comunicare contigo para darte el valor y resolver cualquier duda.";
+      "Apenas esté disponible, me comunicaré contigo para darte el valor y resolver cualquier duda.";
 
     await enviar(from, { text: { body } });
     delete global.cotizacionTimers[from];
-  }, 13 * 1000);
+  }, 13 * 1000); // 13 segundos
 };
-
-// =====================================================
-// 📲 HANDLER PRINCIPAL
-// =====================================================
 
 export const handleMessage = async (req, res) => {
   try {
@@ -110,6 +113,7 @@ export const handleMessage = async (req, res) => {
       delete global.cotizacionTimers[from];
     }
 
+    // 🟢 Detectar si el mensaje viene de botón o lista
     let interactiveId = null;
     if (message.interactive?.list_reply) interactiveId = message.interactive.list_reply.id;
     if (message.interactive?.button_reply) interactiveId = message.interactive.button_reply.id;
@@ -124,7 +128,6 @@ export const handleMessage = async (req, res) => {
     const estado = global.estadoCliente;
 
     const esAdmin = ADMINS.includes(from);
-
     // =====================================================
     // 🧠 DETECCIÓN PRIORITARIA DE "COTIZAR"
     // =====================================================
@@ -164,44 +167,6 @@ export const handleMessage = async (req, res) => {
     // 🟩 ENTRADA FORZADA AL FLUJO DE COTIZACIÓN
     // =====================================================
     if (forceCotizar) input = "COTIZAR";
-
-    // =====================================================
-    // 🟪 SALDO (esperando dato)
-    // =====================================================
-    if (estado[from] === "esperando_dato_saldo") {
-      let dato = text;
-      if (/^\+?\d{10,15}$/.test(text)) {
-        dato = normalizarTelefono(text);
-      }
-
-      const resultado = await consultarSaldo(dato);
-
-      if (resultado?.error || !Array.isArray(resultado)) {
-        await enviar(from, saldoNoEncontrado());
-        delete estado[from];
-        return res.sendStatus(200);
-      }
-
-      if (resultado.length === 1) {
-        await enviar(from, saldoUnPedido(resultado[0]));
-      } else {
-        await enviar(from, seleccionarPedidoSaldo(resultado));
-      }
-
-      delete estado[from];
-      return res.sendStatus(200);
-    }
-
-    // =====================================================
-    // 🟦 MENU
-    // =====================================================
-    if (inputLower === "menu" || inputLower === "menú") {
-      delete estado[from];
-      delete newOrderState[from];
-      await enviar(from, menuPrincipal());
-      return res.sendStatus(200);
-    }
-
     // =====================================================
     // 🟩 ADMIN: NUEVO PEDIDO
     // =====================================================
@@ -211,7 +176,7 @@ export const handleMessage = async (req, res) => {
     }
 
     // =====================================================
-    // 🟨 ADMIN: CONTINUAR FLUJO
+    // 🟨 ADMIN: CONTINUAR FLUJO DE NUEVO PEDIDO
     // =====================================================
     if (esAdmin && newOrderState[from]) {
       await handleNewOrderStep(from, text);
@@ -347,7 +312,7 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // Notificar cliente
+      // Notificar al cliente automáticamente
       async function notificarCambioEstado(pedido, enviar) {
         if (!pedido || !pedido.estado_pedido || !pedido.order_code || !pedido.numero_whatsapp) return;
 
@@ -373,7 +338,7 @@ export const handleMessage = async (req, res) => {
     }
 
     // =====================================================
-    // 🟩 ADMIN: ANTICIPO / ABONO
+    // 🟩 ADMIN: REGISTRAR ANTICIPO / ABONO
     // =====================================================
     if (esAdmin && inputLower === "/abono") {
       adminState[from] = { step: "anticipo_codigo" };
@@ -458,7 +423,6 @@ export const handleMessage = async (req, res) => {
       await enviar(result.numero_whatsapp, { text: { body: mensajeCliente } });
       return res.sendStatus(200);
     }
-
     // =====================================================
     // 🟦 CLIENTE: FLUJO COTIZACIÓN
     // =====================================================
@@ -466,7 +430,7 @@ export const handleMessage = async (req, res) => {
       global.estadoCotizacion = global.estadoCotizacion || {};
       global.estadoCotizacion[from] = { step: "tipoTrabajo" };
 
-      // Mensaje inicial
+      // Mensaje inicial sobre tapicería
       await enviar(from, {
         text: {
           body:
@@ -474,6 +438,7 @@ export const handleMessage = async (req, res) => {
         }
       });
 
+      // Pregunta de tipo de trabajo
       await enviar(from, {
         text: {
           body:
@@ -489,6 +454,7 @@ export const handleMessage = async (req, res) => {
 
       if (estado.step === "tipoTrabajo") {
         const textLower = inputLower;
+
         if (["1", "fabricar", "nuevo"].some(x => textLower.includes(x))) {
           await enviar(from, {
             text: {
@@ -500,6 +466,7 @@ export const handleMessage = async (req, res) => {
           estado.tipo = "fabricar";
           return res.sendStatus(200);
         }
+
         if (["2", "restaurar", "tapizar"].some(x => textLower.includes(x))) {
           await enviar(from, {
             text: {
@@ -524,7 +491,7 @@ export const handleMessage = async (req, res) => {
       }
 
       if (estado.step === "detalleTrabajo") {
-        programarMensajeAsesor(from);
+        programarMensajeAsesor(from); // mensaje diferido al final de la cotización
         delete global.estadoCotizacion[from];
         return res.sendStatus(200);
       }
@@ -535,6 +502,7 @@ export const handleMessage = async (req, res) => {
     // =====================================================
     if (input === "PEDIDO") {
       const pedidos = await getPedidosByPhone(from);
+
       if (!Array.isArray(pedidos) || pedidos.length === 0) {
         await enviar(from, { text: { body: "📭 No encontramos pedidos activos asociados a este número." } });
         return res.sendStatus(200);
@@ -559,6 +527,7 @@ export const handleMessage = async (req, res) => {
     // =====================================================
     if (input === "SALDO") {
       const pedidos = await consultarSaldo(from);
+
       if (!Array.isArray(pedidos) || pedidos.length === 0) {
         await enviar(from, { text: { body: "📭 No encontramos pedidos activos asociados a este número." } });
         return res.sendStatus(200);
@@ -619,10 +588,26 @@ export const handleMessage = async (req, res) => {
       await enviar(from, { text: { body: "📞 Un asesor te contactará pronto." } });
       return res.sendStatus(200);
     }
-
+    // =====================================================
+    // ⚠️ Por defecto, si no cae en ningún flujo
+    // =====================================================
     return res.sendStatus(200);
   } catch (err) {
-    console.error("❌ Error:", err);
+    // =====================================================
+    // ❌ Manejo de errores global
+    // =====================================================
+    console.error("❌ Error en handleMessage:", err?.message || err);
+
+    // Intentar enviar notificación al cliente (opcional)
+    if (req?.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.from) {
+      const from = normalizarTelefono(req.body.entry[0].changes[0].value.messages[0].from);
+      try {
+        await enviar(from, { text: { body: "⚠️ Ocurrió un error interno. Por favor intenta de nuevo más tarde." } });
+      } catch (e) {
+        console.error("⚠️ Error notificando al cliente:", e?.message || e);
+      }
+    }
+
     return res.sendStatus(500);
   }
 };

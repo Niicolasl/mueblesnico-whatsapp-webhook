@@ -1,35 +1,61 @@
-import {telefonoParaWhatsApp } from "../utils/phone.js";
-import { sendMessage } from "../services/whatsappSender.js";
+import { sendMessage } from "./services/whatsappSender.js";
+import 'dotenv/config';
 
+const numeroPrueba = process.env.TEST_WHATSAPP_NUMBER || "573204128555"; // tu número de prueba
 
-// ✅ Número de prueba (el tuyo, en E.164 sin +)
-const numeroPrueba = telefonoParaWhatsApp("3204128555"); // reemplaza con tu número
+(async () => {
+    console.log("🔹 Probando envío de mensaje de texto...");
 
-async function test() {
     try {
-        console.log("🔹 Probando envío de mensaje de texto...");
-        await sendMessage(numeroPrueba, {
-            text: { body: "✅ Este es un mensaje de prueba desde WhatsApp Cloud API" },
+        const respTexto = await sendMessage(numeroPrueba, {
+            text: {
+                body: "✅ Este es un mensaje de prueba desde WhatsApp Cloud API"
+            }
         });
 
-        console.log("🔹 Probando envío de mensaje interactivo (botón)...");
-        await sendMessage(numeroPrueba, {
+        if (respTexto) {
+            console.log("✅ Mensaje de texto enviado correctamente!");
+        }
+    } catch (err) {
+        console.error("❌ Error al enviar mensaje de texto:", err);
+    }
+
+    console.log("🔹 Probando envío de mensaje interactivo (botones)...");
+
+    try {
+        const respInteractivo = await sendMessage(numeroPrueba, {
             interactive: {
                 type: "button",
-                body: { text: "¿Todo funciona bien?" },
+                body: {
+                    text: "¿Todo funciona bien?"
+                },
                 action: {
                     buttons: [
-                        { type: "reply", reply: { id: "boton_si", title: "Sí" } },
-                        { type: "reply", reply: { id: "boton_no", title: "No" } },
-                    ],
-                },
-            },
+                        {
+                            type: "reply",
+                            reply: {
+                                id: "boton_si",
+                                title: "Sí"
+                            }
+                        },
+                        {
+                            type: "reply",
+                            reply: {
+                                id: "boton_no",
+                                title: "No"
+                            }
+                        }
+                    ]
+                }
+            }
         });
 
-        console.log("✅ Prueba completada, revisa WhatsApp del número.");
+        if (respInteractivo) {
+            console.log("✅ Mensaje interactivo enviado correctamente!");
+        }
     } catch (err) {
-        console.error("❌ Error en la prueba:", err);
+        console.error("❌ Error al enviar mensaje interactivo:", err);
     }
-}
 
-test();
+    console.log("🔹 Prueba completada.");
+})();
