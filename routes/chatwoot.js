@@ -26,7 +26,6 @@ router.post("/", async (req, res) => {
 
         // 🚨 SOLO si viene de WhatsApp real
         const sourceId = event.conversation?.contact_inbox?.source_id;
-
         if (!sourceId) {
             console.log("⏭ Ignorado (mensaje del bot / API)");
             return res.sendStatus(200);
@@ -34,11 +33,17 @@ router.post("/", async (req, res) => {
 
         const phone = sourceId;
         const text = event.content?.trim();
-
         if (!phone || !text) return res.sendStatus(200);
+
+        // 🔹 EVITAR LOOP: ignorar mensajes que contengan la marca del bot
+        if (text.startsWith("🤖 Bot → Chatwoot:")) {
+            console.log("⏭ Ignorado (mensaje generado por el bot)");
+            return res.sendStatus(200);
+        }
 
         console.log("👤 Agente → WhatsApp:", phone, ":", text);
 
+        // ✅ Enviar mensaje a WhatsApp
         await sendMessage(phone, {
             text: { body: text }
         });
@@ -49,6 +54,5 @@ router.post("/", async (req, res) => {
         return res.sendStatus(500);
     }
 });
-
 
 export default router;
