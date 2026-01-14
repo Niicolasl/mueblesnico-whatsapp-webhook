@@ -40,10 +40,20 @@ router.post("/", async (req, res) => {
 
         console.log("👤 HUMANO EN CHATWOOT DICE:", text, "PARA:", phone);
 
-        // Enviar mensaje al cliente vía WhatsApp
-        await sendMessage(phone, { text: { body: text } });
+        // Validación mínima para evitar 404
+        if (!phone || phone.length !== 12 || !phone.startsWith("57")) {
+            console.error("❌ Número inválido para WhatsApp Cloud API:", phone);
+            return res.sendStatus(200);
+        }
 
-        console.log("✅ Mensaje enviado correctamente a WhatsApp:", phone);
+        try {
+            // Enviar mensaje al cliente vía WhatsApp
+            await sendMessage(phone, { text: { body: text } });
+            console.log("✅ Mensaje enviado correctamente a WhatsApp:", phone);
+        } catch (err) {
+            // Capturamos errores de WhatsApp (404, 401, etc)
+            console.error("❌ Chatwoot CLIENTE:", err.response?.data || err.message || err);
+        }
 
         return res.sendStatus(200);
     } catch (err) {
