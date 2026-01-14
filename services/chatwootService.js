@@ -106,9 +106,16 @@ async function getOrCreateConversation(e164, contactId) {
         { headers }
     );
 
-    const convoId = convo.data?.data?.id || convo.data?.id;
+    // Chatwoot Cloud devuelve: data.payload.id
+    const convoId =
+        convo.data?.data?.payload?.id ||
+        convo.data?.payload?.id ||
+        convo.data?.id;
+
+    console.log("🧩 Chatwoot conversation_id:", convoId);
 
     if (!convoId) {
+        console.error("❌ Respuesta Chatwoot:", JSON.stringify(convo.data, null, 2));
         throw new Error("No se pudo obtener conversation_id de Chatwoot");
     }
 
