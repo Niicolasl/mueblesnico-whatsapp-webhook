@@ -75,6 +75,10 @@ export const handleMessage = async (req, res) => {
     const contact = changes?.value?.contacts?.[0];
     const profileName = contact?.profile?.name || null;
 
+    console.log("📩 RAW MESSAGE FROM WHATSAPP:");
+    console.dir(message, { depth: null });
+
+
     if (!message) return res.sendStatus(200);
 
     // 🛑 FILTRO CRÍTICO: bloquear mensajes reenviados por Chatwoot
