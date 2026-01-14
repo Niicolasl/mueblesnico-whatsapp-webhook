@@ -30,25 +30,32 @@ import { normalizarTelefono, telefonoParaWhatsApp } from "../utils/phone.js";
 // 🛡️ Configuración global
 global.cotizacionTimers = global.cotizacionTimers || {};
 global.estadoCotizacion = global.estadoCotizacion || {};
-if (!global.estadoCliente) global.estadoCliente = {};
+global.estadoCliente = global.estadoCliente || {};
+
 const estadoCliente = global.estadoCliente;
 
 const ADMINS = ["3204128555", "3125906313"];
 const adminState = {};
 
+// =====================================================
 // 🔧 Helper de envío
+// =====================================================
 const enviar = async (to, payload) => {
   const toWhatsapp = telefonoParaWhatsApp(to);
-  if (payload?.type === "interactive") {
+
+  if (payload?.interactive) {
     return sendMessage(toWhatsapp, {
       type: "interactive",
       interactive: payload.interactive,
     });
   }
+
   return sendMessage(toWhatsapp, payload);
 };
 
+// =====================================================
 // ⏱️ Mensaje diferido al final de cotización
+// =====================================================
 const programarMensajeAsesor = async (from) => {
   if (global.cotizacionTimers[from]) clearTimeout(global.cotizacionTimers[from]);
 
@@ -60,72 +67,79 @@ const programarMensajeAsesor = async (from) => {
           "Apenas esté disponible, me comunicaré contigo para darte el valor y resolver cualquier duda.",
       },
     });
+
     delete global.cotizacionTimers[from];
   }, 13 * 1000);
 };
 
 // =====================================================
-// 📲 HANDLER PRINCIPAL
+// 📲 HANDLER PRINCIPAL (WhatsApp + Chatwoot)
 // =====================================================
-export const handleMessage = async (req, res) => {
+export const handleMessage = async (req, res = null) => {
   try {
-    if (!req.body.entry) return res.sendStatus(200);
-    const entry = req.body.entry?.[0];
-    const changes = entry?.changes?.[0];
-    const message = changes?.value?.messages?.[0];
-    const contact = changes?.value?.contacts?.[0];
-    const profileName = contact?.profile?.name || null;
+    let message;
+    let from;
+    let profileName = null;
 
-    console.log("📩 RAW MESSAGE FROM WHATSAPP:");
-    console.dir(message, { depth: null });
+    // ===== Caso 1: viene de WhatsApp =====
+    if (req.body?.entry) {
+      const entry = req.body.entry[0];
+      const changes = entry.changes[0];
+      message = changes.value.messages?.[0];
+      const contact = changes.value.contacts?.[0];
+      profileName = contact?.profile?.name || null;
 
+      if (!message) return res?.sendStatus(200);
+      from = normalizarTelefono(message.from);
+    }
 
+    // ===== Caso 2: viene de Chatwoot =====
+    else if (req.text && req.from) {
+      from = normalizarTelefono(req.from);
+      message = {
+        type: "text",
+        text: { body: req.text },
+      };
+    }
 
-    if (!message) return res.sendStatus(200);
+    else {
+      return res?.sendStatus(200);
+    }
 
-    // 📞 Números
-    const from = normalizarTelefono(message.from);
+    console.log("📩 INPUT:", message.text?.body, "FROM:", from);
+
     const fromE164 = telefonoParaWhatsApp(from);
+    const text = message.text?.body?.trim() || "";
+    const inputLower = text.toLowerCase();
 
-    let text = message.text?.body?.trim() || "";
-
-    console.log("📩 CLIENTE REAL:", fromE164, text);
-
+    // 👤 Cliente
     const client = await getOrCreateClient(from, profileName);
-    // 🛡️ Enviar a Chatwoot sin romper el flujo
+
+    // 🛡️ Enviar a Chatwoot siempre
     if (text) {
       try {
         await forwardToChatwoot(from, client.name, text);
       } catch (err) {
-        console.error("⚠️ Chatwoot falló pero el bot sigue:", err?.message || err);
+        console.error("⚠️ Chatwoot falló:", err?.message || err);
       }
     }
 
-    // ✋ Cancelar timers de cotización si existe
-    if (global.estadoCotizacion?.[from] && global.cotizacionTimers?.[from]) {
+    // ✋ Cancelar timers si está cotizando
+    if (global.estadoCotizacion[from] && global.cotizacionTimers[from]) {
       clearTimeout(global.cotizacionTimers[from]);
       delete global.cotizacionTimers[from];
     }
 
-    // 👆 Detectar input interactivo
-    let interactiveId =
-      message.interactive?.list_reply?.id || message.interactive?.button_reply?.id;
-
-    let input = interactiveId ?? text;
-    let inputLower = typeof input === "string" ? input.toLowerCase().trim() : "";
-    let forceCotizar = false;
-
-    console.log("📩 INPUT:", input, "FROM:", from);
-
     const esAdmin = ADMINS.includes(from);
 
     // =====================================================
-    // 🧠 DETECCIÓN PRIORITARIA DE "COTIZAR"
-    // (antes de cualquier saludo o menú)
+    // 🔥 DETECCIÓN PRIORITARIA DE COTIZAR
     // =====================================================
+    let forceCotizar = false;
+
     if (
       !esAdmin &&
-      !global.estadoCotizacion?.[from] &&
+      !global.estadoCotizacion[from] &&
       !adminState[from] &&
       inputLower.includes("cotizar")
     ) {
@@ -134,7 +148,7 @@ export const handleMessage = async (req, res) => {
     }
 
     // =====================================================
-    // 👋 SALUDOS NATURALES
+    // 👋 SALUDOS
     // =====================================================
     const saludos = [
       "hola", "holi", "hla", "buenas", "buen día", "buen dia",
@@ -147,9 +161,9 @@ export const handleMessage = async (req, res) => {
     );
 
     // =====================================================
-    // ⚠️ SALUDO SOLO SI NO VIENE A COTIZAR
+    // 👋 Saludo solo si NO viene a cotizar
     // =====================================================
-    if (esSaludo && !forceCotizar && !global.estadoCotizacion?.[from] && !adminState[from]) {
+    if (esSaludo && !forceCotizar && !global.estadoCotizacion[from] && !adminState[from]) {
       const saludoHora = obtenerSaludoColombia();
 
       await enviar(from, {
@@ -163,17 +177,18 @@ export const handleMessage = async (req, res) => {
         },
       });
 
-      return res.sendStatus(200);
+      return res?.sendStatus(200);
     }
 
     // =====================================================
-    // 🟩 ENTRADA FORZADA AL FLUJO DE COTIZACIÓN
+    // 🟩 FORZAR FLUJO DE COTIZAR
     // =====================================================
+    let input = text;
+
     if (forceCotizar) {
       console.log("➡️ Redirigiendo a flujo COTIZAR");
       input = "COTIZAR";
     }
-
 
     // =====================================================
     // 🟪 SALDO (esperando dato)
