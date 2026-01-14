@@ -1,6 +1,7 @@
 import axios from "axios";
 import 'dotenv/config';
-import { sendBotMessageToChatwoot } from "./chatwootSender.js";
+import { sendBotMessageToChatwoot } from "./chatwootService.js";
+
 
 const token = process.env.WHATSAPP_TOKEN;
 const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
