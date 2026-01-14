@@ -15,6 +15,8 @@ router.post("/", async (req, res) => {
             "|",
             event.sender?.type,
             "|",
+            event.sender?.bot,
+            "|",
             event.content
         );
 
@@ -24,22 +26,22 @@ router.post("/", async (req, res) => {
         // Solo outgoing (agente → cliente)
         if (event.message_type !== "outgoing") return res.sendStatus(200);
 
-        // 🚨 SOLO si viene de WhatsApp real
+        // 🔹 EVITAR LOOP: ignorar mensajes enviados por bots
+        if (event.sender?.bot) {
+            console.log("⏭ Ignorado (mensaje generado por un bot)");
+            return res.sendStatus(200);
+        }
+
+        // Solo si viene de WhatsApp real
         const sourceId = event.conversation?.contact_inbox?.source_id;
         if (!sourceId) {
-            console.log("⏭ Ignorado (mensaje del bot / API)");
+            console.log("⏭ Ignorado (mensaje sin sourceId / no WhatsApp)");
             return res.sendStatus(200);
         }
 
         const phone = sourceId;
         const text = event.content?.trim();
         if (!phone || !text) return res.sendStatus(200);
-
-        // 🔹 EVITAR LOOP: ignorar mensajes que contengan la marca del bot
-        if (text.startsWith("🤖 Bot → Chatwoot:")) {
-            console.log("⏭ Ignorado (mensaje generado por el bot)");
-            return res.sendStatus(200);
-        }
 
         console.log("👤 Agente → WhatsApp:", phone, ":", text);
 
