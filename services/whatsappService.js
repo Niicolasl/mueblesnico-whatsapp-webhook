@@ -110,18 +110,27 @@ export const handleMessage = async (req, res) => {
     // 👆 Detectar input interactivo
     let interactiveId =
       message.interactive?.list_reply?.id || message.interactive?.button_reply?.id;
+
     let input = interactiveId ?? text;
-    let inputLower = typeof input === "string" ? input.toLowerCase() : "";
+    let inputLower = typeof input === "string" ? input.toLowerCase().trim() : "";
     let forceCotizar = false;
+
     console.log("📩 INPUT:", input, "FROM:", from);
 
     const esAdmin = ADMINS.includes(from);
 
     // =====================================================
     // 🧠 DETECCIÓN PRIORITARIA DE "COTIZAR"
+    // (antes de cualquier saludo o menú)
     // =====================================================
-    if (!esAdmin && !global.estadoCotizacion?.[from] && !adminState[from] && /\bcotizar\b/.test(inputLower)) {
+    if (
+      !esAdmin &&
+      !global.estadoCotizacion?.[from] &&
+      !adminState[from] &&
+      inputLower.includes("cotizar")
+    ) {
       forceCotizar = true;
+      console.log("🔥 FORCE COTIZAR ACTIVADO");
     }
 
     // =====================================================
@@ -132,29 +141,39 @@ export const handleMessage = async (req, res) => {
       "buenos días", "buenos dias", "buenas tardes", "buenas noches",
       "holaa", "buenass", "saludos",
     ];
+
     const esSaludo = saludos.some(
-      (saludo) => inputLower === saludo || inputLower.startsWith(saludo)
+      saludo => inputLower === saludo || inputLower.startsWith(saludo)
     );
 
-    if (esSaludo && !global.estadoCotizacion?.[from] && !adminState[from]) {
+    // =====================================================
+    // ⚠️ SALUDO SOLO SI NO VIENE A COTIZAR
+    // =====================================================
+    if (esSaludo && !forceCotizar && !global.estadoCotizacion?.[from] && !adminState[from]) {
       const saludoHora = obtenerSaludoColombia();
-      await enviar(from, { text: { body: `Hola, ${saludoHora} 😊\nEspero que estés muy bien.` } });
 
-      if (!forceCotizar) {
-        await enviar(from, {
-          text: {
-            body:
-              "Escribe *Menú* en el momento que desees para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo.",
-          },
-        });
-        return res.sendStatus(200);
-      }
+      await enviar(from, {
+        text: { body: `Hola, ${saludoHora} 😊\nEspero que estés muy bien.` },
+      });
+
+      await enviar(from, {
+        text: {
+          body:
+            "Escribe *Menú* en el momento que desees para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo.",
+        },
+      });
+
+      return res.sendStatus(200);
     }
 
     // =====================================================
     // 🟩 ENTRADA FORZADA AL FLUJO DE COTIZACIÓN
     // =====================================================
-    if (forceCotizar) input = "COTIZAR";
+    if (forceCotizar) {
+      console.log("➡️ Redirigiendo a flujo COTIZAR");
+      input = "COTIZAR";
+    }
+
 
     // =====================================================
     // 🟪 SALDO (esperando dato)

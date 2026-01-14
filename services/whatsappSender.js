@@ -1,5 +1,6 @@
 import axios from "axios";
 import 'dotenv/config';
+import { sendBotMessageToChatwoot } from "./chatwootSender.js";
 
 const token = process.env.WHATSAPP_TOKEN;
 const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -10,15 +11,7 @@ if (!token || !phoneNumberId) {
 }
 
 export const sendMessage = async (to, payload) => {
-  if (!to) {
-    console.error("❌ ERROR: Número de destino no proporcionado");
-    return;
-  }
-
-  if (!payload) {
-    console.error("❌ ERROR: Payload no proporcionado");
-    return;
-  }
+  if (!to || !payload) return;
 
   try {
     const body = {
@@ -26,20 +19,19 @@ export const sendMessage = async (to, payload) => {
       to,
     };
 
-    // ✅ Mensaje interactivo
+    let textToMirror = null;
+
     if (payload?.interactive) {
       body.type = "interactive";
       body.interactive = payload.interactive;
+      textToMirror = payload.interactive.body?.text || "📋 Menú enviado";
     }
-    // ✅ Mensaje de texto
     else if (payload?.text) {
       body.type = "text";
       body.text = payload.text;
+      textToMirror = payload.text.body;
     }
-    else {
-      console.error("❌ ERROR: Payload inválido", payload);
-      return;
-    }
+    else return;
 
     console.log("📤 Enviando a WhatsApp:", JSON.stringify(body, null, 2));
 
@@ -54,23 +46,13 @@ export const sendMessage = async (to, payload) => {
       }
     );
 
-    console.log("✅ Mensaje enviado correctamente:", response.data);
+    console.log("✅ Mensaje enviado:", response.data);
+
+    // 🔥 ESTO ES LO QUE FALTABA
+    await sendBotMessageToChatwoot(to, textToMirror);
+
     return response.data;
   } catch (error) {
-    if (error.response) {
-      console.error(
-        "❌ ERROR WHATSAPP:",
-        error.response.status,
-        error.response.data
-      );
-      if (error.response.status === 401) {
-        console.error("⚠️ TOKEN INVÁLIDO: Revisa que WHATSAPP_TOKEN sea correcto y esté activo");
-      }
-      if (error.response.status === 404) {
-        console.error("⚠️ PHONE_NUMBER_ID incorrecto o endpoint mal configurado");
-      }
-    } else {
-      console.error("❌ ERROR WHATSAPP:", error.message);
-    }
+    console.error("❌ ERROR WHATSAPP:", error.response?.data || error.message);
   }
 };
