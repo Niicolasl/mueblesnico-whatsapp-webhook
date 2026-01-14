@@ -5,51 +5,77 @@ import { telefonoParaWhatsApp } from "../utils/phone.js";
 
 const router = express.Router();
 
+// 🔹 Set en memoria para IDs procesados y evitar duplicados
+const processedMessageIds = new Set();
+
+// 🔹 Tu número de WhatsApp (12 dígitos, 57 + número)
+const MI_NUMERO_WPP = "573133931737"; // reemplaza con tu número real
+
 router.post("/", async (req, res) => {
     try {
         const event = req.body;
 
-        // 🔹 Log completo del evento para depuración
+        // 🔹 Log completo para depuración
         console.log("💬 Webhook Chatwoot recibe:", JSON.stringify(event, null, 2));
 
-        // Solo procesamos mensajes creados
+        // Solo procesamos eventos de mensajes creados
         if (event.event !== "message_created") return res.sendStatus(200);
 
-        // 🔹 Solo procesar mensajes de AGENTE HUMANO
-        if (event.sender_type !== "user") return res.sendStatus(200);
+        const messageId = event.id;
+        if (!messageId) return res.sendStatus(200);
 
-        // Extraer contenido del mensaje
+        // 🔹 Ignorar si ya procesamos este mensaje
+        if (processedMessageIds.has(messageId)) {
+            console.log("⚠️ Mensaje ya procesado, se ignora:", messageId);
+            return res.sendStatus(200);
+        }
+
+        // Solo queremos mensajes "outgoing" (enviados por agentes humanos)
+        if (event.message_type !== "outgoing") return res.sendStatus(200);
+
+        // Extraer texto
         const text = event.content?.trim();
         if (!text) {
             console.warn("⚠️ Mensaje vacío de Chatwoot");
             return res.sendStatus(200);
         }
 
-        // 🔹 Extraer número del contacto
+        // Extraer número del contacto
         const phoneRaw =
-            event.conversation?.contact_inbox?.source_id || // puede venir directo aquí
-            event.conversation?.meta?.sender?.identifier;   // fallback
+            event.conversation?.contact_inbox?.source_id || // normalmente aquí
+            event.conversation?.meta?.sender?.identifier;  // fallback
 
         if (!phoneRaw) {
-            console.warn("⚠️ No se encontró número de contacto en el evento");
+            console.warn("⚠️ No se encontró número de contacto");
             return res.sendStatus(200);
         }
 
-        // Normalizar número para WhatsApp
         const phone = telefonoParaWhatsApp(phoneRaw);
+        if (!phone || phone.length !== 12 || !phone.startsWith("57")) {
+            console.error("❌ Número inválido para WhatsApp:", phone);
+            return res.sendStatus(200);
+        }
+
+        // 🔹 Ignorar mensajes que son de nuestro propio número de WhatsApp
+        if (phone === MI_NUMERO_WPP) {
+            console.log("⚠️ Ignorado mensaje a nuestro propio número:", phone);
+            return res.sendStatus(200);
+        }
 
         console.log("👤 HUMANO EN CHATWOOT DICE:", text, "PARA:", phone);
 
-        // Validación mínima para evitar errores de WhatsApp
-        if (!phone || phone.length !== 12 || !phone.startsWith("57")) {
-            console.error("❌ Número inválido para WhatsApp Cloud API:", phone);
-            return res.sendStatus(200);
-        }
-
         try {
-            // Enviar mensaje al cliente vía WhatsApp
             await sendMessage(phone, { text: { body: text } });
             console.log("✅ Mensaje enviado correctamente a WhatsApp:", phone);
+
+            // 🔹 Marcar como procesado
+            processedMessageIds.add(messageId);
+
+            // 🔹 Limpiar IDs antiguos para no crecer indefinidamente (opcional)
+            if (processedMessageIds.size > 1000) {
+                const first = processedMessageIds.values().next().value;
+                processedMessageIds.delete(first);
+            }
         } catch (err) {
             console.error("❌ Error enviando a WhatsApp:", err.response?.data || err.message || err);
         }
