@@ -154,9 +154,13 @@ export async function sendBotMessageToChatwoot(phone, text) {
                 content: text,
                 message_type: "outgoing",
                 private: false,
+                additional_attributes: {
+                    from_bot: true
+                }
             },
             { headers }
         );
+
 
         console.log("✅ Bot → Chatwoot enviado");
     } catch (err) {
