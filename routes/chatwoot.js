@@ -25,10 +25,10 @@ router.post("/", async (req, res) => {
             return res.sendStatus(200);
         }
 
-        // Extraer número del contacto (estructura según Chatwoot)
+        // 🔹 CORRECCIÓN: Extraer número del contacto
         const phoneRaw =
-            event.conversation?.contact_inbox?.contact?.identifier ||
-            event.conversation?.meta?.sender_identifier;
+            event.conversation?.contact_inbox?.source_id || // viene directo aquí
+            event.conversation?.meta?.sender?.identifier;   // fallback
 
         if (!phoneRaw) {
             console.warn("⚠️ No se encontró número de contacto en el evento");
