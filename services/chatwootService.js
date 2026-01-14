@@ -19,6 +19,12 @@ const headers = {
 // ========================================
 // 🔧 Helpers
 // ========================================
+console.log("CHATWOOT CONFIG:");
+console.log("BASE:", CHATWOOT_BASE);
+console.log("ACCOUNT_ID:", ACCOUNT_ID);
+console.log("INBOX_ID:", INBOX_ID);
+console.log("TOKEN:", CHATWOOT_TOKEN ? "OK" : "MISSING");
+
 
 function toE164(phone) {
     let p = String(phone).replace(/\D/g, "");
