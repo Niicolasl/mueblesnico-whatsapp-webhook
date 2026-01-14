@@ -6,8 +6,12 @@ import chatwootRouter from "./routes/chatwoot.js";
 
 const app = express();
 
-// ✅ Parsear JSON
-app.use(express.json());
+// ✅ Parsear JSON y guardar rawBody para la firma de WhatsApp
+app.use(express.json({
+    verify: (req, res, buf) => {
+        req.rawBody = buf.toString();
+    }
+}));
 
 // 🔹 Log global de todas las requests
 app.use((req, res, next) => {
@@ -32,9 +36,6 @@ app.all("*", (req, res) => {
 
 // 🔹 Puerto dinámico de Render
 const PORT = process.env.PORT || 3000;
-app.get("/", (req, res) => {
-    res.send("Servidor Muebles Nico activo 🚀");
-});
 app.listen(PORT, () => {
     console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
     console.log(`🔹 Prueba tu servidor: https://<tu-app>.onrender.com/`);
