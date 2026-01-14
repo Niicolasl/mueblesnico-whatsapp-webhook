@@ -78,8 +78,9 @@ async function getOrCreateConversation(e164, contactId) {
     const conversations = Array.isArray(res.data?.data) ? res.data.data : [];
 
     const existing = conversations.find(
-        (c) => c.meta?.sender?.phone_number === e164
+        (c) => c.source_id === e164
     );
+
 
     if (existing) {
         conversationCache.set(e164, existing.id);

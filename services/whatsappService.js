@@ -99,7 +99,7 @@ export const handleMessage = async (req, res) => {
     // 🛡️ Enviar a Chatwoot sin romper el flujo
     if (text) {
       try {
-        await forwardToChatwoot(fromE164, client.name, text);
+        await forwardToChatwoot(from, client.name, text);
       } catch (err) {
         console.error("⚠️ Chatwoot falló pero el bot sigue:", err?.message || err);
       }

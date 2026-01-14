@@ -49,12 +49,13 @@ router.post("/", async (req, res) => {
             return res.sendStatus(200);
         }
 
-        // 🔹 Solo agentes humanos pueden enviar mensajes outgoing
-        if (event.message_type === "outgoing" && event.sender?.type !== "User") {
-            console.log("⛔ Outgoing no humano ignorado");
+        // 🔹 Ignorar mensajes del BOT (API de Chatwoot)
+        if (event.sender?.type === "Api::V1::MessagesController") {
+            console.log("🤖 Mensaje del bot ignorado");
             processedMessageIds.add(event.id);
             return res.sendStatus(200);
         }
+
 
         // 🔹 Obtener número del contacto
         const phoneRaw =
@@ -103,7 +104,8 @@ router.post("/", async (req, res) => {
         // ===============================
 
         // 👤 Agente humano → WhatsApp
-        if (event.message_type === "outgoing") {
+        // 👤 Agente humano → WhatsApp
+        if (event.message_type === "outgoing" && event.sender?.type === "User") {
             console.log("👤 Agente → WhatsApp:", phone, ":", text);
             try {
                 await sendMessage(phone, { text: { body: text } });
