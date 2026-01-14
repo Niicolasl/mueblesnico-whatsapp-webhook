@@ -29,27 +29,41 @@ function toE164(phone) {
 // 👤 Contactos
 // ===============================
 async function getOrCreateContact(e164, name) {
+    // 1️⃣ Buscar por teléfono
     const search = await axios.get(
-        `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/search?q=${encodeURIComponent(e164)}`,
-        { headers }
+        `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/search`,
+        {
+            params: { q: e164 },
+            headers
+        }
     );
 
-    if (search.data?.payload?.length) {
-        return search.data.payload[0].id;
+    const found = search.data?.data?.payload?.[0];
+
+    if (found) {
+        return found.id;
     }
 
+    // 2️⃣ Crear solo si no existe
     const res = await axios.post(
         `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts`,
         {
             name: name || e164,
-            identifier: e164,
-            phone_number: e164,
+            phone_number: e164
         },
         { headers }
     );
 
-    return res.data.payload.contact.id;
+    const contactId = res.data?.data?.payload?.contact?.id;
+
+    if (!contactId) {
+        console.error("❌ Chatwoot contact error:", res.data);
+        throw new Error("No contact_id");
+    }
+
+    return contactId;
 }
+
 
 // ===============================
 // 💬 Conversaciones
@@ -59,40 +73,49 @@ async function getOrCreateConversation(e164, contactId) {
         return conversationCache.get(e164);
     }
 
+    // Buscar conversaciones existentes
     const res = await axios.get(
         `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`,
         {
-            params: { inbox_id: INBOX_ID, contact_id: contactId },
+            params: {
+                inbox_id: INBOX_ID,
+                contact_id: contactId,
+            },
             headers,
         }
     );
 
-    const existing = res.data?.data?.payload?.find(c => c.source_id === e164);
-    if (existing) {
-        conversationCache.set(e164, existing.id);
-        return existing.id;
+    const conversations = res.data?.data?.payload || [];
+
+    const open = conversations.find(c => c.status === "open");
+
+    if (open) {
+        conversationCache.set(e164, open.id);
+        return open.id;
     }
 
+    // Crear conversación SIN source_id
     const convo = await axios.post(
         `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`,
         {
             inbox_id: INBOX_ID,
-            contact_id: contactId,
-            source_id: e164,
+            contact_id: contactId
         },
         { headers }
     );
 
     const convoId = convo.data?.data?.payload?.id;
+
     if (!convoId) {
         console.error("❌ Chatwoot respondió:", convo.data);
         throw new Error("No conversation_id");
     }
 
-    conversationCache.set(e164, convoId);
     console.log("🧩 Chatwoot conversation_id:", convoId);
+    conversationCache.set(e164, convoId);
     return convoId;
 }
+
 
 // ===============================
 // 📥 Cliente → Chatwoot
