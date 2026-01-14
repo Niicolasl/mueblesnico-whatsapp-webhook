@@ -17,7 +17,7 @@ const headers = {
 };
 
 // ========================================
-// 🔧 Helpers
+// 🔧 Debug de entorno
 // ========================================
 console.log("CHATWOOT CONFIG:");
 console.log("BASE:", CHATWOOT_BASE);
@@ -25,6 +25,9 @@ console.log("ACCOUNT_ID:", ACCOUNT_ID);
 console.log("INBOX_ID:", INBOX_ID);
 console.log("TOKEN:", CHATWOOT_TOKEN ? "OK" : "MISSING");
 
+// ========================================
+// 📞 Normalización teléfono
+// ========================================
 
 function toE164(phone) {
     let p = String(phone).replace(/\D/g, "");
@@ -41,7 +44,7 @@ function toE164(phone) {
 }
 
 // ========================================
-// 👤 Contactos
+// 👤 CONTACTOS
 // ========================================
 
 async function getOrCreateContact(e164, name) {
@@ -68,7 +71,7 @@ async function getOrCreateContact(e164, name) {
 }
 
 // ========================================
-// 💬 Conversaciones (FIXED para Chatwoot Cloud)
+// 💬 CONVERSACIONES (Chatwoot Cloud safe)
 // ========================================
 
 async function getOrCreateConversation(e164, contactId) {
@@ -76,14 +79,15 @@ async function getOrCreateConversation(e164, contactId) {
         return conversationCache.get(e164);
     }
 
+    // Buscar conversaciones existentes
     const res = await axios.get(
         `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`,
         {
             params: {
                 inbox_id: INBOX_ID,
-                contact_id: contactId
+                contact_id: contactId,
             },
-            headers
+            headers,
         }
     );
 
@@ -96,6 +100,7 @@ async function getOrCreateConversation(e164, contactId) {
         return existing.id;
     }
 
+    // Crear nueva conversación
     const convo = await axios.post(
         `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`,
         {
@@ -106,7 +111,6 @@ async function getOrCreateConversation(e164, contactId) {
         { headers }
     );
 
-    // Chatwoot Cloud devuelve: data.payload.id
     const convoId =
         convo.data?.data?.payload?.id ||
         convo.data?.payload?.id ||
@@ -114,9 +118,9 @@ async function getOrCreateConversation(e164, contactId) {
 
     console.log("🧩 Chatwoot conversation_id:", convoId);
 
-    if (!convoId) {
+    if (!convoId || typeof convoId !== "number") {
         console.error("❌ Respuesta Chatwoot:", JSON.stringify(convo.data, null, 2));
-        throw new Error("No se pudo obtener conversation_id de Chatwoot");
+        throw new Error("Chatwoot no devolvió conversation_id válido");
     }
 
     conversationCache.set(e164, convoId);
@@ -124,7 +128,7 @@ async function getOrCreateConversation(e164, contactId) {
 }
 
 // ========================================
-// 📥 Cliente → Chatwoot
+// 📥 CLIENTE → CHATWOOT
 // ========================================
 
 export async function forwardToChatwoot(phone, name, text) {
@@ -150,7 +154,7 @@ export async function forwardToChatwoot(phone, name, text) {
 }
 
 // ========================================
-// 🤖 Bot → Chatwoot
+// 🤖 BOT → CHATWOOT
 // ========================================
 
 export async function sendBotMessageToChatwoot(phone, text) {
@@ -161,6 +165,8 @@ export async function sendBotMessageToChatwoot(phone, text) {
 
         const contactId = await getOrCreateContact(e164, e164);
         const conversationId = await getOrCreateConversation(e164, contactId);
+
+        console.log("🧩 Bot usando conversation_id:", conversationId);
 
         await axios.post(
             `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
