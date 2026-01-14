@@ -25,6 +25,17 @@ router.post("/", async (req, res) => {
 
         console.log("💬 Webhook Chatwoot recibe:", JSON.stringify(event, null, 2));
 
+        // Solo permitir mensajes de agentes humanos
+        if (event.message_type !== "outgoing") {
+            return res.sendStatus(200);
+        }
+
+        if (event.sender?.type !== "User") {
+            console.log("⛔ Mensaje automático de Chatwoot ignorado");
+            return res.sendStatus(200);
+        }
+
+
         if (event.event !== "message_created") return res.sendStatus(200);
         if (!event.id) return res.sendStatus(200);
 

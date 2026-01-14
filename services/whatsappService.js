@@ -25,6 +25,7 @@ import {
 } from "../utils/messageTemplates.js";
 import { sendMessage } from "./whatsappSender.js";
 import { normalizarTelefono, telefonoParaWhatsApp } from "../utils/phone.js";
+import { isFromChatwoot } from "../utils/isFromChatwoot.js";
 
 // 🛡️ Configuración global
 global.cotizacionTimers = global.cotizacionTimers || {};
@@ -76,13 +77,21 @@ export const handleMessage = async (req, res) => {
 
     if (!message) return res.sendStatus(200);
 
+    // 🛑 FILTRO CRÍTICO: bloquear mensajes reenviados por Chatwoot
+    if (isFromChatwoot(message)) {
+      console.log("⛔ Mensaje reenviado por Chatwoot — bot NO lo procesa");
+      return res.sendStatus(200);
+    }
+
     // 📞 Números
     const from = normalizarTelefono(message.from);
     const fromE164 = telefonoParaWhatsApp(from);
 
     let text = message.text?.body?.trim() || "";
-    const client = await getOrCreateClient(from, profileName);
 
+    console.log("📩 CLIENTE REAL:", fromE164, text);
+
+    const client = await getOrCreateClient(from, profileName);
     // 🛡️ Enviar a Chatwoot sin romper el flujo
     if (text) {
       try {
