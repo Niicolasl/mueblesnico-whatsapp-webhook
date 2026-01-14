@@ -68,7 +68,7 @@ async function getOrCreateContact(e164, name) {
 }
 
 // ========================================
-// 💬 Conversaciones
+// 💬 Conversaciones (FIXED para Chatwoot Cloud)
 // ========================================
 
 async function getOrCreateConversation(e164, contactId) {
@@ -77,16 +77,19 @@ async function getOrCreateConversation(e164, contactId) {
     }
 
     const res = await axios.get(
-        `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations?inbox_id=${INBOX_ID}&contact_id=${contactId}`,
-        { headers }
+        `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`,
+        {
+            params: {
+                inbox_id: INBOX_ID,
+                contact_id: contactId
+            },
+            headers
+        }
     );
 
-    const conversations = Array.isArray(res.data?.data) ? res.data.data : [];
+    const conversations = res.data?.data?.payload || [];
 
-    const existing = conversations.find(
-        (c) => c.source_id === e164
-    );
-
+    const existing = conversations.find(c => c.source_id === e164);
 
     if (existing) {
         conversationCache.set(e164, existing.id);
@@ -103,8 +106,14 @@ async function getOrCreateConversation(e164, contactId) {
         { headers }
     );
 
-    conversationCache.set(e164, convo.data.id);
-    return convo.data.id;
+    const convoId = convo.data?.data?.id || convo.data?.id;
+
+    if (!convoId) {
+        throw new Error("No se pudo obtener conversation_id de Chatwoot");
+    }
+
+    conversationCache.set(e164, convoId);
+    return convoId;
 }
 
 // ========================================
