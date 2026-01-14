@@ -12,9 +12,9 @@ const processedMessageIds = new Set();
 const recentMessageHashes = new Set();
 
 // 🔹 Tu número de WhatsApp (12 dígitos, 57 + número)
-const MI_NUMERO_WPP = "573133931737"; // reemplaza con tu número real
+const MI_NUMERO_WPP = "573133931737";
 
-// 🔹 Función para crear hash simple de {phone+text}
+// 🔹 Crear hash simple de {phone+text}
 function hashMessage(phone, text) {
     return crypto.createHash("sha256").update(`${phone}:${text}`).digest("hex");
 }
@@ -23,89 +23,103 @@ router.post("/", async (req, res) => {
     try {
         const event = req.body;
 
-        console.log("💬 Webhook Chatwoot recibe:", JSON.stringify(event, null, 2));
-
-        // Solo permitir mensajes de agentes humanos
-        if (event.message_type !== "outgoing") {
-            return res.sendStatus(200);
-        }
-
-        if (event.sender?.type !== "User") {
-            console.log("⛔ Mensaje automático de Chatwoot ignorado");
-            return res.sendStatus(200);
-        }
-
+        // 🔎 Log corto y útil
+        console.log(
+            "💬 Chatwoot:",
+            event.message_type,
+            "|",
+            event.sender?.type,
+            "|",
+            event.content,
+            "|",
+            event.conversation?.meta?.sender?.identifier
+        );
 
         if (event.event !== "message_created") return res.sendStatus(200);
         if (!event.id) return res.sendStatus(200);
 
-        // 🔹 Ignorar si ya procesamos este ID
+        // 🔹 Evitar reprocesar el mismo evento
         if (processedMessageIds.has(event.id)) {
-            console.log("⚠️ Mensaje ya procesado, se ignora ID:", event.id);
+            console.log("⚠️ ID duplicado ignorado:", event.id);
             return res.sendStatus(200);
         }
 
-        // Extraer número del contacto
+        // Solo permitir mensajes de agentes humanos o clientes
+        if (!["incoming", "outgoing"].includes(event.message_type)) {
+            return res.sendStatus(200);
+        }
+
+        // 🔹 Solo agentes humanos pueden enviar mensajes outgoing
+        if (event.message_type === "outgoing" && event.sender?.type !== "User") {
+            console.log("⛔ Outgoing no humano ignorado");
+            processedMessageIds.add(event.id);
+            return res.sendStatus(200);
+        }
+
+        // 🔹 Obtener número del contacto
         const phoneRaw =
             event.conversation?.contact_inbox?.source_id ||
             event.conversation?.meta?.sender?.identifier;
 
         if (!phoneRaw) {
-            console.warn("⚠️ No se encontró número de contacto");
+            console.warn("⚠️ Sin número de contacto");
             processedMessageIds.add(event.id);
             return res.sendStatus(200);
         }
 
         const phone = telefonoParaWhatsApp(phoneRaw);
 
-        // Validación mínima
         if (!phone || phone.length !== 12 || !phone.startsWith("57")) {
-            console.error("❌ Número inválido para WhatsApp:", phone);
+            console.error("❌ Número inválido:", phoneRaw, "→", phone);
             processedMessageIds.add(event.id);
             return res.sendStatus(200);
         }
 
-        // 🔹 Ignorar mensajes de nuestro propio número
+        // 🔹 Ignorar mensajes a nuestro propio número
         if (phone === MI_NUMERO_WPP) {
-            console.log("⚠️ Ignorado mensaje a nuestro propio número:", phone);
+            console.log("⚠️ Mensaje a nuestro propio número ignorado");
             processedMessageIds.add(event.id);
             return res.sendStatus(200);
         }
 
-        // 🔹 Extraer texto
-        const text = event.content?.trim() || "";
+        // 🔹 Texto
+        const text = event.content?.trim();
         if (!text) {
             console.warn("⚠️ Mensaje vacío");
             processedMessageIds.add(event.id);
             return res.sendStatus(200);
         }
 
-        // 🔹 Crear hash {phone+text} para evitar loops
+        // 🔹 Anti-loop por hash {phone+text}
         const msgHash = hashMessage(phone, text);
         if (recentMessageHashes.has(msgHash)) {
-            console.log("⚠️ Mensaje duplicado por hash, se ignora:", text);
+            console.log("🔁 Hash duplicado ignorado:", text);
             processedMessageIds.add(event.id);
             return res.sendStatus(200);
         }
 
-        // 🔹 Mensajes de agentes → enviar a WhatsApp
+        // ===============================
+        // 🧭 RUTEO PRINCIPAL
+        // ===============================
+
+        // 👤 Agente humano → WhatsApp
         if (event.message_type === "outgoing") {
-            console.log("👤 HUMANO EN CHATWOOT DICE:", text, "PARA:", phone);
+            console.log("👤 Agente → WhatsApp:", phone, ":", text);
             try {
                 await sendMessage(phone, { text: { body: text } });
-                console.log("✅ Mensaje enviado a WhatsApp:", phone);
+                console.log("✅ Enviado a WhatsApp");
             } catch (err) {
-                console.error("❌ Error enviando a WhatsApp:", err.response?.data || err.message || err);
+                console.error("❌ Error enviando a WhatsApp:", err.response?.data || err.message);
             }
         }
 
-        // 🔹 Mensajes de clientes → procesar con bot
+        // 🤖 Cliente → Bot
         if (event.message_type === "incoming") {
-            console.log("🤖 CLIENTE CHATWOOT DICE:", text, "DESDE:", phone);
+            console.log("🤖 Cliente → Bot:", phone, ":", text);
             try {
                 await handleMessage({ text, from: phone });
             } catch (err) {
-                console.error("❌ Error procesando mensaje de cliente:", err);
+                console.error("❌ Error en bot:", err);
             }
         }
 
@@ -113,19 +127,17 @@ router.post("/", async (req, res) => {
         processedMessageIds.add(event.id);
         recentMessageHashes.add(msgHash);
 
-        // 🔹 Limpiar sets para no crecer indefinidamente
+        // 🔹 Limpieza
         if (processedMessageIds.size > 1000) {
-            const firstId = processedMessageIds.values().next().value;
-            processedMessageIds.delete(firstId);
+            processedMessageIds.delete(processedMessageIds.values().next().value);
         }
         if (recentMessageHashes.size > 1000) {
-            const firstHash = recentMessageHashes.values().next().value;
-            recentMessageHashes.delete(firstHash);
+            recentMessageHashes.delete(recentMessageHashes.values().next().value);
         }
 
         return res.sendStatus(200);
     } catch (err) {
-        console.error("❌ Error chatwoot webhook:", err);
+        console.error("❌ Error Chatwoot webhook:", err);
         return res.sendStatus(500);
     }
 });
