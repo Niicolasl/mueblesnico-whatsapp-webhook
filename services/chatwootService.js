@@ -29,7 +29,6 @@ function toE164(phone) {
 // 👤 Contactos
 // ===============================
 async function getOrCreateContact(e164, name) {
-    // 1️⃣ Buscar por teléfono
     const search = await axios.get(
         `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/search`,
         {
@@ -38,13 +37,12 @@ async function getOrCreateContact(e164, name) {
         }
     );
 
-    const found = search.data?.data?.payload?.[0];
+    const results = search.data?.payload || [];
 
-    if (found) {
-        return found.id;
+    if (results.length > 0) {
+        return results[0].id;
     }
 
-    // 2️⃣ Crear solo si no existe
     const res = await axios.post(
         `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts`,
         {
@@ -54,15 +52,16 @@ async function getOrCreateContact(e164, name) {
         { headers }
     );
 
-    const contactId = res.data?.data?.payload?.contact?.id;
+    const contactId = res.data?.payload?.contact?.id;
 
     if (!contactId) {
-        console.error("❌ Chatwoot contact error:", res.data);
-        throw new Error("No contact_id");
+        console.error("❌ Chatwoot create contact:", res.data);
+        throw new Error("No contact id");
     }
 
     return contactId;
 }
+
 
 
 // ===============================
