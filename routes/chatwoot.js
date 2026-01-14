@@ -15,8 +15,8 @@ router.post("/", async (req, res) => {
         // Solo procesamos mensajes creados
         if (event.event !== "message_created") return res.sendStatus(200);
 
-        // Solo queremos los mensajes de AGENTE (humano), no del cliente
-        if (event.message_type !== "outgoing") return res.sendStatus(200);
+        // 🔹 Solo procesar mensajes de AGENTE HUMANO
+        if (event.sender_type !== "user") return res.sendStatus(200);
 
         // Extraer contenido del mensaje
         const text = event.content?.trim();
@@ -25,9 +25,9 @@ router.post("/", async (req, res) => {
             return res.sendStatus(200);
         }
 
-        // 🔹 CORRECCIÓN: Extraer número del contacto
+        // 🔹 Extraer número del contacto
         const phoneRaw =
-            event.conversation?.contact_inbox?.source_id || // viene directo aquí
+            event.conversation?.contact_inbox?.source_id || // puede venir directo aquí
             event.conversation?.meta?.sender?.identifier;   // fallback
 
         if (!phoneRaw) {
@@ -40,7 +40,7 @@ router.post("/", async (req, res) => {
 
         console.log("👤 HUMANO EN CHATWOOT DICE:", text, "PARA:", phone);
 
-        // Validación mínima para evitar 404
+        // Validación mínima para evitar errores de WhatsApp
         if (!phone || phone.length !== 12 || !phone.startsWith("57")) {
             console.error("❌ Número inválido para WhatsApp Cloud API:", phone);
             return res.sendStatus(200);
@@ -51,8 +51,7 @@ router.post("/", async (req, res) => {
             await sendMessage(phone, { text: { body: text } });
             console.log("✅ Mensaje enviado correctamente a WhatsApp:", phone);
         } catch (err) {
-            // Capturamos errores de WhatsApp (404, 401, etc)
-            console.error("❌ Chatwoot CLIENTE:", err.response?.data || err.message || err);
+            console.error("❌ Error enviando a WhatsApp:", err.response?.data || err.message || err);
         }
 
         return res.sendStatus(200);
