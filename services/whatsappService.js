@@ -25,7 +25,7 @@ import {
 } from "../utils/messageTemplates.js";
 import { sendMessage } from "./whatsappSender.js";
 import { normalizarTelefono, telefonoParaWhatsApp } from "../utils/phone.js";
-import { isFromChatwoot } from "../utils/isFromChatwoot.js";
+
 
 // 🛡️ Configuración global
 global.cotizacionTimers = global.cotizacionTimers || {};
@@ -69,6 +69,7 @@ const programarMensajeAsesor = async (from) => {
 // =====================================================
 export const handleMessage = async (req, res) => {
   try {
+    if (!req.body.entry) return res.sendStatus(200);
     const entry = req.body.entry?.[0];
     const changes = entry?.changes?.[0];
     const message = changes?.value?.messages?.[0];
@@ -79,13 +80,8 @@ export const handleMessage = async (req, res) => {
     console.dir(message, { depth: null });
 
 
-    if (!message) return res.sendStatus(200);
 
-    // 🛑 FILTRO CRÍTICO: bloquear mensajes reenviados por Chatwoot
-    if (isFromChatwoot(message)) {
-      console.log("⛔ Mensaje reenviado por Chatwoot — bot NO lo procesa");
-      return res.sendStatus(200);
-    }
+    if (!message) return res.sendStatus(200);
 
     // 📞 Números
     const from = normalizarTelefono(message.from);

@@ -6,22 +6,25 @@ import chatwootRouter from "./routes/chatwoot.js";
 
 const app = express();
 
-// ✅ Parsear JSON y guardar rawBody para la firma de WhatsApp
-app.use(express.json({
+// 👇 JSON normal (Chatwoot, pruebas, etc)
+app.use("/chatwoot", express.json());
+
+// 👇 JSON con rawBody SOLO para WhatsApp
+app.use("/webhook", express.json({
     verify: (req, res, buf) => {
         req.rawBody = buf.toString();
     }
 }));
+
+// 🔹 Rutas principales
+app.use("/webhook", webhookRouter);
+app.use("/chatwoot", chatwootRouter);
 
 // 🔹 Log global de todas las requests
 app.use((req, res, next) => {
     console.log("🌐 REQUEST:", req.method, req.url, "BODY:", JSON.stringify(req.body, null, 2));
     next();
 });
-
-// 🔹 Rutas principales
-app.use("/webhook", webhookRouter);
-app.use("/chatwoot", chatwootRouter);
 
 // 🔹 Ruta de prueba para confirmar que Render levanta el servidor
 app.get("/", (req, res) => {
