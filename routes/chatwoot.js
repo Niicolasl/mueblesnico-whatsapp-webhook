@@ -18,33 +18,26 @@ router.post("/", async (req, res) => {
             event.content
         );
 
-        // Solo cuando se crea un mensaje
+        // Solo mensajes creados
         if (event.event !== "message_created") return res.sendStatus(200);
 
-        // Solo mensajes que salen de Chatwoot
+        // Solo outgoing (agente → cliente)
         if (event.message_type !== "outgoing") return res.sendStatus(200);
 
-        // 🛑 Ignorar mensajes enviados por el BOT (firmados)
-        if (event.additional_attributes?.from_bot === true) {
-            console.log("⏭ Ignorado (mensaje del BOT)");
+        // 🚨 SOLO si viene de WhatsApp real
+        const sourceId = event.conversation?.contact_inbox?.source_id;
+
+        if (!sourceId) {
+            console.log("⏭ Ignorado (mensaje del bot / API)");
             return res.sendStatus(200);
         }
 
-        // Solo mensajes escritos por humanos
-        if (event.sender?.type !== "user") {
-            console.log("⏭ Ignorado (no humano):", event.sender?.type);
-            return res.sendStatus(200);
-        }
-
-        const phone =
-            event.conversation?.contact_inbox?.source_id ||
-            event.conversation?.meta?.sender?.identifier;
-
+        const phone = sourceId;
         const text = event.content?.trim();
 
         if (!phone || !text) return res.sendStatus(200);
 
-        console.log("👤 Agente humano → WhatsApp:", phone, ":", text);
+        console.log("👤 Agente → WhatsApp:", phone, ":", text);
 
         await sendMessage(phone, {
             text: { body: text }
@@ -56,5 +49,6 @@ router.post("/", async (req, res) => {
         return res.sendStatus(500);
     }
 });
+
 
 export default router;
