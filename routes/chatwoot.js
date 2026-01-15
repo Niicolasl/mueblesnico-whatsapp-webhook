@@ -7,52 +7,30 @@ router.post("/", async (req, res) => {
     try {
         const event = req.body;
 
-        console.log(
-            "💬 Chatwoot:",
-            event.event,
-            "|",
-            event.message_type,
-            "|",
-            event.sender?.type,
-            "|",
-            event.sender?.bot,
-            "|",
-            event.content
-        );
-
-        // Solo mensajes creados
+        // 1. Filtros de seguridad básicos
         if (event.event !== "message_created") return res.sendStatus(200);
-
-        // Solo outgoing (agente → cliente)
         if (event.message_type !== "outgoing") return res.sendStatus(200);
 
-        // 🔹 EVITAR LOOP: Solo permitir mensajes de AGENTES HUMANOS
-        if (event.sender?.type !== "user") {
-            console.log("⏭ Ignorado: No es un agente humano (evitando loop del bot)");
+        // 2. EVITAR LOOP: Si el mensaje lo creó un BOT o no es un usuario humano, ignorar.
+        if (event.sender?.bot || event.sender?.type !== "user") {
             return res.sendStatus(200);
         }
 
-        // Solo si viene de WhatsApp real
         const sourceId = event.conversation?.contact_inbox?.source_id;
-        if (!sourceId) {
-            console.log("⏭ Ignorado (mensaje sin sourceId / no WhatsApp)");
-            return res.sendStatus(200);
-        }
-
-        const phone = sourceId;
         const text = event.content?.trim();
-        if (!phone || !text) return res.sendStatus(200);
 
-        console.log("👤 Agente → WhatsApp:", phone, ":", text);
+        if (!sourceId || !text) return res.sendStatus(200);
 
-        // ✅ Enviar mensaje a WhatsApp
-        await sendMessage(phone, {
+        console.log("👤 Agente Humano -> WhatsApp:", sourceId, ":", text);
+
+        // ✅ Enviar a WhatsApp
+        await sendMessage(sourceId, {
             text: { body: text }
         });
 
         return res.sendStatus(200);
     } catch (err) {
-        console.error("❌ Chatwoot webhook error:", err.response?.data || err.message);
+        console.error("❌ Chatwoot webhook error:", err.message);
         return res.sendStatus(500);
     }
 });

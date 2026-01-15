@@ -96,12 +96,9 @@ export const handleMessage = async (req, res = null) => {
 
     // ===== Caso 2: viene de Chatwoot =====
     else if (req.text && req.from) {
-      from = normalizarTelefono(req.from);
-      message = {
-        type: "text",
-        text: { body: req.text },
-      };
-      vieneDeChatwoot = true; // ✅ Marcamos que viene de Chatwoot
+      // Si el mensaje viene de Chatwoot, ya se envió a WhatsApp en chatwoot.js
+      // Solo terminamos la ejecución para que el bot no analice este texto.
+      return res?.sendStatus(200);
     } else {
       return res?.sendStatus(200);
     }
@@ -135,17 +132,16 @@ export const handleMessage = async (req, res = null) => {
     // =====================================================
     // 🔥 DETECCIÓN PRIORITARIA DE COTIZAR
     // =====================================================
+    const palabrasCotizar = ["cotizar"];
     let forceCotizar = false;
 
-    // Si escribe "cotizar", activamos la bandera
     if (
       !esAdmin &&
       !global.estadoCotizacion[from] &&
-      !adminState[from] &&
-      inputLower.includes("cotizar")
+      palabrasCotizar.some(p => inputLower.includes(p))
     ) {
       forceCotizar = true;
-      console.log("🔥 FORCE COTIZAR ACTIVADO");
+      console.log("🔥 PRIORIDAD: COTIZAR DETECTADO");
     }
 
     // =====================================================
@@ -182,29 +178,17 @@ export const handleMessage = async (req, res = null) => {
     );
 
     // Solo saludamos si es un saludo Y NO es cotizar, Y NO es Admin
-    if (
-      esSaludo &&
-      !forceCotizar &&
-      input !== "COTIZAR" &&
-      !global.estadoCotizacion[from] &&
-      !adminState[from] &&
-      inputLower !== "menu" // Asegurar que no sea menu
-    ) {
+    // Solo saludamos si es un saludo puro Y NO contiene intención de cotizar
+    if (esSaludo && !forceCotizar && !global.estadoCotizacion[from]) {
       const saludoHora = obtenerSaludoColombia();
-
       await enviar(from, {
         text: { body: `Hola, ${saludoHora} 😊\nEspero que estés muy bien.` },
       });
-
       await enviar(from, {
-        text: {
-          body: "Escribe *Menú* en el momento que desees para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo.",
-        },
+        text: { body: "Escribe *Menú* para ver opciones, o dime qué necesitas." },
       });
-
       return res?.sendStatus(200);
     }
-
     // =====================================================
     // 🟪 SALDO (esperando dato)
     // =====================================================
