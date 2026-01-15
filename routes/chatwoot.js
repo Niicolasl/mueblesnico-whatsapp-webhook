@@ -26,9 +26,9 @@ router.post("/", async (req, res) => {
         // Solo outgoing (agente → cliente)
         if (event.message_type !== "outgoing") return res.sendStatus(200);
 
-        // 🔹 EVITAR LOOP: ignorar mensajes enviados por bots
-        if (event.sender?.bot) {
-            console.log("⏭ Ignorado (mensaje generado por un bot)");
+        // 🔹 EVITAR LOOP: Solo permitir mensajes de AGENTES HUMANOS
+        if (event.sender?.type !== "user") {
+            console.log("⏭ Ignorado: No es un agente humano (evitando loop del bot)");
             return res.sendStatus(200);
         }
 

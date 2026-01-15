@@ -26,7 +26,6 @@ import {
 import { sendMessage } from "./whatsappSender.js";
 import { normalizarTelefono, telefonoParaWhatsApp } from "../utils/phone.js";
 
-
 // 🛡️ Configuración global
 global.cotizacionTimers = global.cotizacionTimers || {};
 global.estadoCotizacion = global.estadoCotizacion || {};
@@ -57,7 +56,8 @@ const enviar = async (to, payload) => {
 // ⏱️ Mensaje diferido al final de cotización
 // =====================================================
 const programarMensajeAsesor = async (from) => {
-  if (global.cotizacionTimers[from]) clearTimeout(global.cotizacionTimers[from]);
+  if (global.cotizacionTimers[from])
+    clearTimeout(global.cotizacionTimers[from]);
 
   global.cotizacionTimers[from] = setTimeout(async () => {
     await enviar(from, {
@@ -80,6 +80,7 @@ export const handleMessage = async (req, res = null) => {
     let message;
     let from;
     let profileName = null;
+    let vieneDeChatwoot = false; // 🚩 Nueva bandera para evitar bucles
 
     // ===== Caso 1: viene de WhatsApp =====
     if (req.body?.entry) {
@@ -100,9 +101,8 @@ export const handleMessage = async (req, res = null) => {
         type: "text",
         text: { body: req.text },
       };
-    }
-
-    else {
+      vieneDeChatwoot = true; // ✅ Marcamos que viene de Chatwoot
+    } else {
       return res?.sendStatus(200);
     }
 
@@ -115,8 +115,8 @@ export const handleMessage = async (req, res = null) => {
     // 👤 Cliente
     const client = await getOrCreateClient(from, profileName);
 
-    // 🛡️ Enviar a Chatwoot siempre
-    if (text) {
+    // 🛡️ Enviar a Chatwoot siempre (SOLO SI NO VIENE DE CHATWOOT)
+    if (text && !vieneDeChatwoot) {
       try {
         await forwardToChatwoot(from, client.name, text);
       } catch (err) {
@@ -137,6 +137,7 @@ export const handleMessage = async (req, res = null) => {
     // =====================================================
     let forceCotizar = false;
 
+    // Si escribe "cotizar", activamos la bandera
     if (
       !esAdmin &&
       !global.estadoCotizacion[from] &&
@@ -148,36 +149,13 @@ export const handleMessage = async (req, res = null) => {
     }
 
     // =====================================================
-    // 👋 SALUDOS
+    // 🟦 MENU (Prioridad Alta - Mueve esto ANTES del saludo)
     // =====================================================
-    const saludos = [
-      "hola", "holi", "hla", "buenas", "buen día", "buen dia",
-      "buenos días", "buenos dias", "buenas tardes", "buenas noches",
-      "holaa", "buenass", "saludos",
-    ];
-
-    const esSaludo = saludos.some(
-      saludo => inputLower === saludo || inputLower.startsWith(saludo)
-    );
-
-    // =====================================================
-    // 👋 Saludo solo si NO viene a cotizar
-    // =====================================================
-    if (esSaludo && !forceCotizar && !global.estadoCotizacion[from] && !adminState[from]) {
-      const saludoHora = obtenerSaludoColombia();
-
-      await enviar(from, {
-        text: { body: `Hola, ${saludoHora} 😊\nEspero que estés muy bien.` },
-      });
-
-      await enviar(from, {
-        text: {
-          body:
-            "Escribe *Menú* en el momento que desees para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo.",
-        },
-      });
-
-      return res?.sendStatus(200);
+    if (inputLower === "menu" || inputLower === "menú") {
+      delete estadoCliente[from];
+      delete newOrderState[from];
+      await enviar(from, menuPrincipal());
+      return res.sendStatus(200);
     }
 
     // =====================================================
@@ -187,7 +165,44 @@ export const handleMessage = async (req, res = null) => {
 
     if (forceCotizar) {
       console.log("➡️ Redirigiendo a flujo COTIZAR");
-      input = "COTIZAR";
+      input = "COTIZAR"; // Esto sobreescribe el input para que entre en el bloque de abajo
+    }
+
+    // =====================================================
+    // 👋 SALUDOS (Ahora verificamos que NO sea un comando)
+    // =====================================================
+    const saludos = [
+      "hola", "holi", "hla", "buenas", "buen día", "buen dia",
+      "buenos días", "buenos dias", "buenas tardes", "buenas noches",
+      "holaa", "buenass", "saludos",
+    ];
+
+    const esSaludo = saludos.some(
+      (saludo) => inputLower === saludo || inputLower.startsWith(saludo + " ")
+    );
+
+    // Solo saludamos si es un saludo Y NO es cotizar, Y NO es Admin
+    if (
+      esSaludo &&
+      !forceCotizar &&
+      input !== "COTIZAR" &&
+      !global.estadoCotizacion[from] &&
+      !adminState[from] &&
+      inputLower !== "menu" // Asegurar que no sea menu
+    ) {
+      const saludoHora = obtenerSaludoColombia();
+
+      await enviar(from, {
+        text: { body: `Hola, ${saludoHora} 😊\nEspero que estés muy bien.` },
+      });
+
+      await enviar(from, {
+        text: {
+          body: "Escribe *Menú* en el momento que desees para ver todas las opciones, o si prefieres dime qué necesitas y con gusto te ayudo.",
+        },
+      });
+
+      return res?.sendStatus(200);
     }
 
     // =====================================================
@@ -205,20 +220,11 @@ export const handleMessage = async (req, res = null) => {
         return res.sendStatus(200);
       }
 
-      if (resultado.length === 1) await enviar(from, saldoUnPedido(resultado[0]));
+      if (resultado.length === 1)
+        await enviar(from, saldoUnPedido(resultado[0]));
       else await enviar(from, seleccionarPedidoSaldo(resultado));
 
       delete estadoCliente[from];
-      return res.sendStatus(200);
-    }
-
-    // =====================================================
-    // 🟦 MENU
-    // =====================================================
-    if (inputLower === "menu" || inputLower === "menú") {
-      delete estadoCliente[from];
-      delete newOrderState[from];
-      await enviar(from, menuPrincipal());
       return res.sendStatus(200);
     }
 
@@ -319,6 +325,7 @@ export const handleMessage = async (req, res = null) => {
 
         // ✅ Avisar al CLIENTE automáticamente
         if (result.numero_whatsapp) {
+            const saludoHora = obtenerSaludoColombia();
           await enviar(result.numero_whatsapp, {
             text: {
               body:
@@ -367,6 +374,7 @@ export const handleMessage = async (req, res = null) => {
 
       let mensaje = null;
       const estado = pedido.estado_pedido.toUpperCase();
+      const saludoHora = obtenerSaludoColombia();
 
       if (estado === "LISTO") {
         mensaje =
@@ -389,7 +397,6 @@ export const handleMessage = async (req, res = null) => {
         text: { body: mensaje },
       });
     }
-
 
     // =====================================================
     // =====================================================
@@ -479,7 +486,6 @@ export const handleMessage = async (req, res = null) => {
       return res.sendStatus(200);
     }
 
-
     // =====================================================
     // 🟩 ADMIN: ANTICIPO
     // =====================================================
@@ -552,7 +558,6 @@ export const handleMessage = async (req, res = null) => {
       const base = Number(input.replace(/[^\d]/g, ""));
       const valor = base * 1000;
 
-
       if (!valor || valor <= 0) {
         await enviar(from, {
           text: {
@@ -562,7 +567,10 @@ export const handleMessage = async (req, res = null) => {
         return res.sendStatus(200);
       }
 
-      const result = await registrarAnticipo(adminState[from].orderCode, valor);
+      const result = await registrarAnticipo(
+        adminState[from].orderCode,
+        valor
+      );
 
       // ❌ Excede saldo
       if (result?.error === "EXCEDE_SALDO") {
@@ -768,7 +776,11 @@ export const handleMessage = async (req, res = null) => {
     if (input === "SALDO") {
       const pedidos = await consultarSaldo(from);
 
-      if (pedidos?.error || !Array.isArray(pedidos) || pedidos.length === 0) {
+      if (
+        pedidos?.error ||
+        !Array.isArray(pedidos) ||
+        pedidos.length === 0
+      ) {
         await enviar(from, {
           text: {
             body: "📭 No encontramos pedidos activos asociados a este número.",
