@@ -177,7 +177,7 @@ export const handleMessage = async (req, res = null) => {
       (saludo) => inputLower === saludo || inputLower.startsWith(saludo + " ")
     );
 
-    // Solo saludamos si es un saludo puro Y NO es una intención de cotizar
+    // Cambio aquí: Si es saludo PERO también es cotización, NO entra aquí
     if (esSaludo && !forceCotizar && !global.estadoCotizacion[from] && !adminState[from]) {
       const saludoHora = obtenerSaludoColombia();
       await enviar(from, {
@@ -632,34 +632,34 @@ export const handleMessage = async (req, res = null) => {
     }
 
     // =====================================================
-    // 🟦 CLIENTE: OPCIONES MENÚ
+    // 🟦 CLIENTE: OPCIONES MENÚ / COTIZAR
     // =====================================================
-    if (global.cotizacionTimers?.[from]) {
-      clearTimeout(global.cotizacionTimers[from]);
-      delete global.cotizacionTimers[from];
-    }
 
+    // IMPORTANTE: Mueve el if (input === "COTIZAR") arriba de los demás estados de cliente
     if (input === "COTIZAR") {
       global.estadoCotizacion[from] = { step: "tipoTrabajo" };
+
+      // Enviamos primero la advertencia
       await enviar(from, {
         text: {
           body:
-            "🪑 *Ten en cuenta qué*\n\n" +
+            "🪑 *Ten en cuenta que:*\n\n" +
             "Para los muebles que requieren *tapicería*:\n" +
             "• Se cobra únicamente la *mano de obra*.\n" +
-            "• Los materiales los adquiere el cliente, ya que su precio varía según diseño y calidad.(yo te indico cuales serían)\n\n" +
-            "Fabricamos y también *restauramos* muebles.\n\n",
+            "• Los materiales los adquiere el cliente (yo te indico cuáles).\n\n" +
+            "Fabricamos y también *restauramos* muebles.",
         },
       });
 
+      // Enviamos la pregunta
       await enviar(from, {
         text: {
           body:
-            "¿Qué es lo que necesitas hacer? 👇\n\n" +
+            "¿Qué necesitas hacer? 👇\n\n" +
             "1️⃣ Fabricar un mueble nuevo\n" +
             "2️⃣ Restaurar o tapizar un mueble\n" +
-            "3️⃣ Otro arreglo (reparaciones, rieles, chapas, instalación, etc.)\n\n" +
-            "Respóndeme con el número o escríbelo con tus propias palabras.",
+            "3️⃣ Otro arreglo\n\n" +
+            "Responde con el número o tu mensaje.",
         },
       });
       return res.sendStatus(200);

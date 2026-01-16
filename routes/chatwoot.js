@@ -7,34 +7,33 @@ router.post("/", async (req, res) => {
     try {
         const event = req.body;
 
-        // 1. Solo procesar mensajes que salen de Chatwoot hacia el cliente
+        // 1. Solo mensajes salientes
         if (event.event !== "message_created" || event.message_type !== "outgoing") {
             return res.sendStatus(200);
         }
 
-        // 2. 🔥 ROMPER EL BUCLE (Eco Check)
-        // Revisamos si el mensaje tiene la marca 'from_bot' que pusimos en chatwootService.js
-        const isBot = event.additional_attributes?.from_bot === true;
+        // 2. FILTRO DE BOT MEJORADO
+        // Ignorar si tiene marca 'from_bot' O si el remitente es tipo 'bot'
+        const isBot = event.additional_attributes?.from_bot === true || event.sender?.type === "bot";
 
         if (isBot) {
-            console.log("⏭️ Eco del Bot detectado. Ignorando para evitar bucle.");
+            console.log("⏭️ Filtrando mensaje automático (Bot)");
             return res.sendStatus(200);
         }
 
-        // 3. Extraer datos
+        // 3. Extraer destinatario (source_id es el teléfono con +57)
         const sourceId = event.conversation?.contact_inbox?.source_id;
-        const text = event.content?.trim();
 
-        if (!sourceId || !text) return res.sendStatus(200);
-
-        // 4. Doble seguridad: Si el texto es un saludo automático, ignorar
-        if (text.includes("Espero que estés muy bien") || text.includes("Escribe *Menú*")) {
+        // 4. Si el mensaje NO TIENE contenido de texto (es interactivo/bot), ignorar
+        // Los agentes humanos siempre escriben texto plano.
+        if (!sourceId || !event.content) {
             return res.sendStatus(200);
         }
 
-        console.log("👤 Agente Humano Manual -> WhatsApp:", sourceId);
+        const text = event.content.trim();
 
-        // ✅ Enviar a WhatsApp (Solo llega aquí si tú escribiste manual en el panel)
+        console.log("👤 Agente Humano -> WhatsApp:", sourceId);
+
         await sendMessage(sourceId, {
             text: { body: text }
         });
@@ -42,7 +41,7 @@ router.post("/", async (req, res) => {
         return res.sendStatus(200);
     } catch (err) {
         console.error("❌ Chatwoot webhook error:", err.message);
-        return res.sendStatus(500);
+        return res.sendStatus(200); // Siempre responder 200 para evitar reintentos de Chatwoot
     }
 });
 
