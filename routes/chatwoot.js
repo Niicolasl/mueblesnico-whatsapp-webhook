@@ -13,7 +13,7 @@ router.post("/", async (req, res) => {
             return res.sendStatus(200);
         }
 
-        // 2. 🔥 FILTRO ANTI-ECO: Si el ID está en lastSentMessages, es el bot quien lo envió
+        // 2. 🔥 FILTRO ANTI-ECO: Si el ID está en la memoria del Bot, ignorar.
         if (lastSentMessages.has(event.id)) {
             console.log("⏭️ Eco del Bot detectado (ID conocido). Ignorando...");
             return res.sendStatus(200);
@@ -27,48 +27,55 @@ router.post("/", async (req, res) => {
 
         const sourceId = event.conversation?.contact_inbox?.source_id;
         const text = event.content?.trim();
-        const attachments = event.attachments; // 👈 Detectar archivos adjuntos
+        const attachments = event.attachments;
 
         if (!sourceId) return res.sendStatus(200);
 
-        // 4. Bloqueo de comandos manuales del agente (solo si es texto)
+        // 4. Bloqueo de comandos manuales del agente
         if (text) {
             const lowerText = text.toLowerCase();
-            if (["menu", "menú", "cotizar"].includes(lowerText)) {
+            if (["menu", "menú", "cotizar", "saldo", "pedido"].includes(lowerText)) {
+                console.log("🚫 Comando bloqueado: El agente no puede disparar flujos del bot.");
                 return res.sendStatus(200);
             }
         }
 
         // =====================================================
-        // 🖼️ LÓGICA DE ENVÍO (IMAGEN O TEXTO)
+        // 🖼️ LÓGICA DE ENVÍO MULTIMEDIA O TEXTO
         // =====================================================
 
-        // A. Si hay adjuntos (prioridad a la imagen)
+        // A. PRIORIDAD: Si hay archivos adjuntos
         if (attachments && attachments.length > 0) {
             const file = attachments[0];
 
             if (file.file_type === "image") {
                 console.log("📸 Agente Humano -> Enviando Imagen a WhatsApp");
+
                 await sendMessage(sourceId, {
                     type: "image",
                     image: {
                         link: file.data_url,
-                        caption: text || "" // Si escribiste texto junto a la imagen, se envía como pie de foto
+                        caption: text || "" // Envía el texto como pie de foto si existe
                     }
                 });
                 return res.sendStatus(200);
             }
+
+            // Si es otro tipo de archivo (PDF, etc) podrías añadir la lógica aquí
         }
 
-        // B. Si es solo texto
+        // B. SECUNDARIO: Si no hay adjuntos, enviar como texto simple
         if (text) {
-            console.log("👤 Agente Humano -> WhatsApp:", sourceId);
-            await sendMessage(sourceId, { text: { body: text } });
+            console.log("👤 Agente Humano -> WhatsApp (Texto):", sourceId);
+            await sendMessage(sourceId, {
+                text: { body: text }
+            });
         }
 
         return res.sendStatus(200);
     } catch (err) {
         console.error("❌ Chatwoot webhook error:", err.message);
+        // Respondemos 200 para que Chatwoot no reintente infinitamente en caso de error transitorio
         return res.sendStatus(200);
     }
 });

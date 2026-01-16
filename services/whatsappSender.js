@@ -11,7 +11,7 @@ if (!token || !phoneNumberId) {
 }
 
 /**
- * Envia mensajes a WhatsApp y los refleja en Chatwoot
+ * Envía mensajes a WhatsApp y los refleja en Chatwoot
  */
 export const sendMessage = async (to, payload) => {
   if (!to || !payload) return;
@@ -24,29 +24,42 @@ export const sendMessage = async (to, payload) => {
 
     let textToMirror = null;
 
-    // 1. Manejo de mensajes interactivos (Listas/Botones)
-    if (payload?.interactive) {
+    // --- 1. MANEJO DE IMÁGENES ---
+    if (payload.type === "image" || payload.image) {
+      body.type = "image";
+      body.image = {
+        link: payload.image?.link || payload.link
+      };
+      textToMirror = "📷 Imagen enviada";
+    }
+
+    // --- 2. MANEJO DE MENSAJES INTERACTIVOS (Listas/Botones) ---
+    else if (payload?.type === "interactive" || payload?.interactive) {
       body.type = "interactive";
       body.interactive = payload.interactive;
 
-      // Extraemos el texto para que en Chatwoot se vea qué se envió
+      // Extraemos texto para Chatwoot
       const headerText = payload.interactive.header?.text ? `${payload.interactive.header.text}\n` : "";
       const bodyText = payload.interactive.body?.text || "";
       textToMirror = `${headerText}${bodyText}` || "📋 Menú interactivo enviado";
     }
-    // 2. Manejo de mensajes de texto simple
-    else if (payload?.text) {
+
+    // --- 3. MANEJO DE TEXTO SIMPLE ---
+    else if (payload?.type === "text" || payload?.text) {
       body.type = "text";
-      body.text = payload.text;
-      textToMirror = payload.text.body;
+      // Si el payload es un objeto con body o solo el objeto text
+      body.text = payload.text?.body ? payload.text : { body: payload.text };
+      textToMirror = body.text.body;
     }
+
     else {
+      console.error("⚠️ Tipo de mensaje no soportado:", payload);
       return;
     }
 
     console.log(`📤 Enviando a WhatsApp (${to}):`, textToMirror?.substring(0, 50) + "...");
 
-    // 3. Petición a la API de WhatsApp
+    // 🚀 Petición a la API de WhatsApp
     const response = await axios.post(
       `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
       body,
@@ -58,8 +71,7 @@ export const sendMessage = async (to, payload) => {
       }
     );
 
-    // 4. 🔥 Reflejar en Chatwoot como mensaje del BOT
-    // Usamos un try/catch interno para que si falla Chatwoot no detenga la respuesta de WhatsApp
+    // 🔄 Reflejar en Chatwoot (siempre que no sea un eco)
     if (textToMirror) {
       try {
         await sendBotMessageToChatwoot(to, textToMirror);
