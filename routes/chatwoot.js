@@ -27,17 +27,44 @@ router.post("/", async (req, res) => {
 
         const sourceId = event.conversation?.contact_inbox?.source_id;
         const text = event.content?.trim();
+        const attachments = event.attachments; // 👈 Detectar archivos adjuntos
 
-        if (!sourceId || !text) return res.sendStatus(200);
+        if (!sourceId) return res.sendStatus(200);
 
-        // 4. Bloqueo de comandos manuales del agente
-        const lowerText = text.toLowerCase();
-        if (["menu", "menú", "cotizar"].includes(lowerText)) {
-            return res.sendStatus(200);
+        // 4. Bloqueo de comandos manuales del agente (solo si es texto)
+        if (text) {
+            const lowerText = text.toLowerCase();
+            if (["menu", "menú", "cotizar"].includes(lowerText)) {
+                return res.sendStatus(200);
+            }
         }
 
-        console.log("👤 Agente Humano -> WhatsApp:", sourceId);
-        await sendMessage(sourceId, { text: { body: text } });
+        // =====================================================
+        // 🖼️ LÓGICA DE ENVÍO (IMAGEN O TEXTO)
+        // =====================================================
+
+        // A. Si hay adjuntos (prioridad a la imagen)
+        if (attachments && attachments.length > 0) {
+            const file = attachments[0];
+
+            if (file.file_type === "image") {
+                console.log("📸 Agente Humano -> Enviando Imagen a WhatsApp");
+                await sendMessage(sourceId, {
+                    type: "image",
+                    image: {
+                        link: file.data_url,
+                        caption: text || "" // Si escribiste texto junto a la imagen, se envía como pie de foto
+                    }
+                });
+                return res.sendStatus(200);
+            }
+        }
+
+        // B. Si es solo texto
+        if (text) {
+            console.log("👤 Agente Humano -> WhatsApp:", sourceId);
+            await sendMessage(sourceId, { text: { body: text } });
+        }
 
         return res.sendStatus(200);
     } catch (err) {

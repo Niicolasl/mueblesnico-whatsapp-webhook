@@ -65,15 +65,28 @@ async function getOrCreateConversation(e164, contactId) {
     return convoId;
 }
 
-export async function forwardToChatwoot(phone, name, text) {
+export async function forwardToChatwoot(phone, name, messageObject) {
     try {
         const e164 = toE164(phone);
         const contactId = await getOrCreateContact(e164, name);
         const conversationId = await getOrCreateConversation(e164, contactId);
 
+        let content = "";
+
+        // Si es texto
+        if (messageObject.text) {
+            content = messageObject.text.body;
+        }
+        // Si es imagen
+        else if (messageObject.type === "image") {
+            content = "📷 [El cliente envió una imagen]";
+            // Para ver la imagen real necesitas descargar el media_id de WhatsApp 
+            // y subirlo a Chatwoot, es un proceso más avanzado.
+        }
+
         await axios.post(
             `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
-            { content: text, message_type: "incoming" },
+            { content: content, message_type: "incoming" },
             { headers }
         );
     } catch (err) {
