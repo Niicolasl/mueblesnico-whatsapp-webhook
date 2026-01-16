@@ -93,7 +93,7 @@ export const handleMessage = async (req, res) => {
 
     const entry = req.body.entry?.[0];
     const changes = entry?.changes?.[0];
-    const message = changes?.value?.messages?.[0];
+    const message = changes?.value?.messages?.[0]; // 👈 Objeto completo del mensaje
     const contact = changes?.value?.contacts?.[0];
     const profileName = contact?.profile?.name || null;
 
@@ -127,18 +127,16 @@ export const handleMessage = async (req, res) => {
 
     console.log("📩 INPUT:", input, "FROM:", from);
 
-    // 🛡️ Sincronizar mensaje entrante con Chatwoot
-    if (text) {
-      try {
-        await forwardToChatwoot(from, client.name, text);
-      } catch (err) {
-        console.error("⚠️ Error Chatwoot:", err?.message);
-      }
+    // 🛡️ Sincronizar mensaje entrante con Chatwoot (CORREGIDO)
+    // Ahora enviamos 'message' completo en lugar de solo 'text'
+    try {
+      await forwardToChatwoot(from, client.name, message);
+    } catch (err) {
+      console.error("⚠️ Error Chatwoot:", err?.message);
     }
 
     const estado = global.estadoCliente;
     const esAdmin = ADMINS.includes(from);
-
     // =====================================================
     // 🧠 DETECCIÓN PRIORITARIA DE "COTIZAR" (ANTES DEL SALUDO)
     // =====================================================
