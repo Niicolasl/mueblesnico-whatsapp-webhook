@@ -80,7 +80,6 @@ export const handleMessage = async (req, res = null) => {
     let message;
     let from;
     let profileName = null;
-    let vieneDeChatwoot = false; // 🚩 Nueva bandera para evitar bucles
 
     // ===== Caso 1: viene de WhatsApp =====
     if (req.body?.entry) {
@@ -93,11 +92,12 @@ export const handleMessage = async (req, res = null) => {
       if (!message) return res?.sendStatus(200);
       from = normalizarTelefono(message.from);
     }
-
-    // ===== Caso 2: viene de Chatwoot =====
+    // ===== Caso 2: viene de Chatwoot (ECO / AGENTE) =====
     else if (req.text && req.from) {
-      // Si el mensaje viene de Chatwoot, ya se envió a WhatsApp en chatwoot.js
-      // Solo terminamos la ejecución para que el bot no analice este texto.
+      // 🛑 CORTE DE BUCLE DEFINITIVO: 
+      // Si el mensaje viene de Chatwoot, ya fue procesado por chatwoot.js
+      // No permitimos que el bot analice o responda a este mensaje.
+      console.log("⏭️ Ignorando eco/agente de Chatwoot");
       return res?.sendStatus(200);
     } else {
       return res?.sendStatus(200);
@@ -112,8 +112,8 @@ export const handleMessage = async (req, res = null) => {
     // 👤 Cliente
     const client = await getOrCreateClient(from, profileName);
 
-    // 🛡️ Enviar a Chatwoot siempre (SOLO SI NO VIENE DE CHATWOOT)
-    if (text && !vieneDeChatwoot) {
+    // 🛡️ Enviar a Chatwoot (Solo mensajes que vienen de WhatsApp)
+    if (text) {
       try {
         await forwardToChatwoot(from, client.name, text);
       } catch (err) {
@@ -121,8 +121,8 @@ export const handleMessage = async (req, res = null) => {
       }
     }
 
-    // ✋ Cancelar timers si está cotizando
-    if (global.estadoCotizacion[from] && global.cotizacionTimers[from]) {
+    // ✋ Cancelar timers si el cliente escribe algo nuevo
+    if (global.cotizacionTimers[from]) {
       clearTimeout(global.cotizacionTimers[from]);
       delete global.cotizacionTimers[from];
     }
@@ -132,9 +132,10 @@ export const handleMessage = async (req, res = null) => {
     // =====================================================
     // 🔥 DETECCIÓN PRIORITARIA DE COTIZAR
     // =====================================================
-    const palabrasCotizar = ["cotizar"];
+    const palabrasCotizar = ["cotizar", "cotizacion", "cotización", "precio", "cuanto vale", "cuánto vale"];
     let forceCotizar = false;
 
+    // Si detectamos intención de cotizar, activamos bandera y bloqueamos saludos
     if (
       !esAdmin &&
       !global.estadoCotizacion[from] &&
@@ -145,10 +146,11 @@ export const handleMessage = async (req, res = null) => {
     }
 
     // =====================================================
-    // 🟦 MENU (Prioridad Alta - Mueve esto ANTES del saludo)
+    // 🟦 MENU
     // =====================================================
     if (inputLower === "menu" || inputLower === "menú") {
       delete estadoCliente[from];
+      delete global.estadoCotizacion[from];
       delete newOrderState[from];
       await enviar(from, menuPrincipal());
       return res.sendStatus(200);
@@ -158,14 +160,12 @@ export const handleMessage = async (req, res = null) => {
     // 🟩 FORZAR FLUJO DE COTIZAR
     // =====================================================
     let input = text;
-
     if (forceCotizar) {
-      console.log("➡️ Redirigiendo a flujo COTIZAR");
-      input = "COTIZAR"; // Esto sobreescribe el input para que entre en el bloque de abajo
+      input = "COTIZAR";
     }
 
     // =====================================================
-    // 👋 SALUDOS (Ahora verificamos que NO sea un comando)
+    // 👋 SALUDOS
     // =====================================================
     const saludos = [
       "hola", "holi", "hla", "buenas", "buen día", "buen dia",
@@ -177,15 +177,14 @@ export const handleMessage = async (req, res = null) => {
       (saludo) => inputLower === saludo || inputLower.startsWith(saludo + " ")
     );
 
-    // Solo saludamos si es un saludo Y NO es cotizar, Y NO es Admin
-    // Solo saludamos si es un saludo puro Y NO contiene intención de cotizar
-    if (esSaludo && !forceCotizar && !global.estadoCotizacion[from]) {
+    // Solo saludamos si es un saludo puro Y NO es una intención de cotizar
+    if (esSaludo && !forceCotizar && !global.estadoCotizacion[from] && !adminState[from]) {
       const saludoHora = obtenerSaludoColombia();
       await enviar(from, {
         text: { body: `Hola, ${saludoHora} 😊\nEspero que estés muy bien.` },
       });
       await enviar(from, {
-        text: { body: "Escribe *Menú* para ver opciones, o dime qué necesitas." },
+        text: { body: "Escribe *Menú* para ver opciones, o dime qué necesitas y con gusto te ayudo." },
       });
       return res?.sendStatus(200);
     }
