@@ -1,5 +1,6 @@
 import express from "express";
 import { sendMessage } from "../services/whatsappSender.js";
+import { lastSentMessages } from "../services/chatwootService.js";
 
 const router = express.Router();
 
@@ -7,46 +8,41 @@ router.post("/", async (req, res) => {
     try {
         const event = req.body;
 
-        // 1. Solo procesamos mensajes creados que sean salientes (agente -> cliente)
+        // 1. Ignorar si no es un mensaje saliente
         if (event.event !== "message_created" || event.message_type !== "outgoing") {
             return res.sendStatus(200);
         }
 
-        // 2. 🛑 CORTE DEFINITIVO DE BUCLE:
-        // Chatwoot marca los mensajes de los agentes como 'user'. 
-        // Si el mensaje lo envió el sistema, el bot o una automatización, NO es tipo 'user'.
+        // 2. 🔥 FILTRO ANTI-ECO: Si el ID está en lastSentMessages, es el bot quien lo envió
+        if (lastSentMessages.has(event.id)) {
+            console.log("⏭️ Eco del Bot detectado (ID conocido). Ignorando...");
+            return res.sendStatus(200);
+        }
+
+        // 3. Solo procesar si lo escribió un AGENTE HUMANO (tipo 'user')
         const esAgenteHumano = event.sender?.type === "user";
-        const esNotaPrivada = event.private === true;
-
-        if (!esAgenteHumano || esNotaPrivada) {
-            // Si no lo escribió un humano manualmente en el chat, lo ignoramos para no repetir lo que el bot ya dijo.
+        if (!esAgenteHumano || event.private === true) {
             return res.sendStatus(200);
         }
 
-        // 3. Extraer datos para el envío
-        const text = event.content?.trim();
         const sourceId = event.conversation?.contact_inbox?.source_id;
+        const text = event.content?.trim();
 
-        // Si no hay texto o no hay número de destino, salimos.
-        if (!text || !sourceId) {
+        if (!sourceId || !text) return res.sendStatus(200);
+
+        // 4. Bloqueo de comandos manuales del agente
+        const lowerText = text.toLowerCase();
+        if (["menu", "menú", "cotizar"].includes(lowerText)) {
             return res.sendStatus(200);
         }
 
-        // 4. Evitar enviar de nuevo si el contenido es exactamente un comando de menú (opcional)
-        const esComandoBot = ["menu", "menú", "cotizar"].includes(text.toLowerCase());
-        if (esComandoBot) {
-            return res.sendStatus(200);
-        }
-
-        console.log("👤 Agente Humano detectado -> Enviando a WhatsApp:", sourceId);
-
-        // Enviamos el mensaje del agente humano a WhatsApp
+        console.log("👤 Agente Humano -> WhatsApp:", sourceId);
         await sendMessage(sourceId, { text: { body: text } });
 
         return res.sendStatus(200);
     } catch (err) {
         console.error("❌ Chatwoot webhook error:", err.message);
-        return res.sendStatus(200); // Siempre respondemos 200 a Chatwoot para evitar reintentos fallidos
+        return res.sendStatus(200);
     }
 });
 
