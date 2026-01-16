@@ -82,7 +82,7 @@ export async function forwardToChatwoot(phone, name, messageObject) {
 
             // 3. Preparar FormData para Chatwoot
             const form = new FormData();
-            form.append('content', caption || "📷 Imagen recibida");
+            form.append('content', caption );
             form.append('message_type', 'incoming');
             form.append('attachments[]', Buffer.from(fileStream.data), {
                 filename: 'whatsapp_image.jpg',
