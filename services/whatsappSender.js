@@ -25,12 +25,13 @@ export const sendMessage = async (to, payload) => {
     let textToMirror = null;
 
     // --- 1. MANEJO DE IMÁGENES ---
-    if (payload.type === "image" || payload.image) {
+    if (payload.type === "image") {
       body.type = "image";
       body.image = {
-        link: payload.image?.link || payload.link
+        link: payload.image.link,
+        caption: payload.image.caption || "" // 👈 Esto permite enviar el texto con la foto
       };
-      textToMirror = "📷 Imagen enviada";
+      textToMirror = payload.image.caption ? `📷 ${payload.image.caption}` : "📷 Imagen enviada";
     }
 
     // --- 2. MANEJO DE MENSAJES INTERACTIVOS (Listas/Botones) ---

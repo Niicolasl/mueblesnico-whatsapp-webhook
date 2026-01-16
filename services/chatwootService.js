@@ -1,4 +1,5 @@
 import axios from "axios";
+import FormData from 'form-data';
 
 const CHATWOOT_BASE = process.env.CHATWOOT_BASE;
 const CHATWOOT_TOKEN = process.env.CHATWOOT_API_TOKEN;
@@ -71,26 +72,49 @@ export async function forwardToChatwoot(phone, name, messageObject) {
         const contactId = await getOrCreateContact(e164, name);
         const conversationId = await getOrCreateConversation(e164, contactId);
 
-        let content = "";
+        // 1. SI ES UNA IMAGEN (RECEPCIÓN)
+        if (messageObject.type === "image") {
+            const mediaId = messageObject.image.id;
+            const caption = messageObject.image.caption || "";
 
-        // Si es texto
+            // A. Obtener URL de descarga desde WhatsApp
+            const mediaRes = await axios.get(`https://graph.facebook.com/v20.0/${mediaId}`, {
+                headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` }
+            });
+
+            // B. Descargar el archivo binario
+            const fileRes = await axios.get(mediaRes.data.url, {
+                headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` },
+                responseType: 'arraybuffer'
+            });
+
+            // C. Subir a Chatwoot como archivo real usando FormData
+            const form = new FormData();
+            form.append('content', caption || "📷 Imagen recibida de WhatsApp");
+            form.append('attachments[]', Buffer.from(fileRes.data), {
+                filename: 'imagen_whatsapp.jpg',
+                contentType: 'image/jpeg'
+            });
+            form.append('message_type', 'incoming');
+
+            await axios.post(
+                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
+                form,
+                { headers: { ...headers, ...form.getHeaders() } }
+            );
+            return;
+        }
+
+        // 2. SI ES SOLO TEXTO
         if (messageObject.text) {
-            content = messageObject.text.body;
+            await axios.post(
+                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
+                { content: messageObject.text.body, message_type: "incoming" },
+                { headers }
+            );
         }
-        // Si es imagen
-        else if (messageObject.type === "image") {
-            content = "📷 [El cliente envió una imagen]";
-            // Para ver la imagen real necesitas descargar el media_id de WhatsApp 
-            // y subirlo a Chatwoot, es un proceso más avanzado.
-        }
-
-        await axios.post(
-            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
-            { content: content, message_type: "incoming" },
-            { headers }
-        );
     } catch (err) {
-        console.error("❌ Chatwoot CLIENTE:", err.message);
+        console.error("❌ Error al reenviar a Chatwoot:", err.response?.data || err.message);
     }
 }
 

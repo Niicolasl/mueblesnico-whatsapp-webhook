@@ -47,21 +47,16 @@ router.post("/", async (req, res) => {
         // A. PRIORIDAD: Si hay archivos adjuntos
         if (attachments && attachments.length > 0) {
             const file = attachments[0];
-
             if (file.file_type === "image") {
-                console.log("📸 Agente Humano -> Enviando Imagen a WhatsApp");
-
                 await sendMessage(sourceId, {
                     type: "image",
                     image: {
                         link: file.data_url,
-                        caption: text || "" // Envía el texto como pie de foto si existe
+                        caption: event.content // 👈 Aquí pasamos el texto que escribiste en Chatwoot
                     }
                 });
                 return res.sendStatus(200);
             }
-
-            // Si es otro tipo de archivo (PDF, etc) podrías añadir la lógica aquí
         }
 
         // B. SECUNDARIO: Si no hay adjuntos, enviar como texto simple
