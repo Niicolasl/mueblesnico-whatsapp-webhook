@@ -15,7 +15,6 @@ router.post("/", async (req, res) => {
 
         // 2. 🔥 FILTRO ANTI-ECO: Si el ID está en la memoria del Bot, ignorar.
         if (lastSentMessages.has(event.id)) {
-            console.log("⏭️ Eco del Bot detectado (ID conocido). Ignorando...");
             return res.sendStatus(200);
         }
 
@@ -25,7 +24,8 @@ router.post("/", async (req, res) => {
             return res.sendStatus(200);
         }
 
-        const sourceId = event.conversation?.contact_inbox?.source_id;
+        // 📞 Obtención robusta del identificador del cliente
+        const sourceId = event.conversation?.contact_inbox?.source_id || event.conversation?.meta?.sender?.phone_number;
         const text = event.content?.trim();
         const attachments = event.attachments;
 
@@ -35,7 +35,6 @@ router.post("/", async (req, res) => {
         if (text) {
             const lowerText = text.toLowerCase();
             if (["menu", "menú", "cotizar", "saldo", "pedido"].includes(lowerText)) {
-                console.log("🚫 Comando bloqueado: El agente no puede disparar flujos del bot.");
                 return res.sendStatus(200);
             }
         }
@@ -52,8 +51,9 @@ router.post("/", async (req, res) => {
                     type: "image",
                     image: {
                         link: file.data_url,
-                        caption: event.content // 👈 Aquí pasamos el texto que escribiste en Chatwoot
-                    }
+                        caption: event.content
+                    },
+                    provenance: "chatwoot" // 👈 AGREGADO: Para evitar doble burbuja en imágenes
                 });
                 return res.sendStatus(200);
             }
@@ -61,8 +61,6 @@ router.post("/", async (req, res) => {
 
         // B. SECUNDARIO: Si no hay adjuntos, enviar como texto simple
         if (text) {
-            console.log("👤 Agente Humano -> WhatsApp:", sourceId);
-
             await sendMessage(sourceId, {
                 text: { body: text },
                 provenance: "chatwoot" // 👈 Marcamos que viene de Chatwoot
@@ -72,7 +70,6 @@ router.post("/", async (req, res) => {
         return res.sendStatus(200);
     } catch (err) {
         console.error("❌ Chatwoot webhook error:", err.message);
-        // Respondemos 200 para que Chatwoot no reintente infinitamente en caso de error transitorio
         return res.sendStatus(200);
     }
 });
