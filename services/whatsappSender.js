@@ -29,7 +29,7 @@ export const sendMessage = async (to, payload) => {
       body.type = "image";
       body.image = {
         link: payload.image.link,
-        caption: payload.image.caption || "" // 👈 Esto permite enviar el texto con la foto
+        caption: payload.image.caption || ""
       };
       textToMirror = payload.image.caption ? `📷 ${payload.image.caption}` : "📷 Imagen enviada";
     }
@@ -39,7 +39,6 @@ export const sendMessage = async (to, payload) => {
       body.type = "interactive";
       body.interactive = payload.interactive;
 
-      // Extraemos texto para Chatwoot
       const headerText = payload.interactive.header?.text ? `${payload.interactive.header.text}\n` : "";
       const bodyText = payload.interactive.body?.text || "";
       textToMirror = `${headerText}${bodyText}` || "📋 Menú interactivo enviado";
@@ -48,7 +47,6 @@ export const sendMessage = async (to, payload) => {
     // --- 3. MANEJO DE TEXTO SIMPLE ---
     else if (payload?.type === "text" || payload?.text) {
       body.type = "text";
-      // Si el payload es un objeto con body o solo el objeto text
       body.text = payload.text?.body ? payload.text : { body: payload.text };
       textToMirror = body.text.body;
     }
@@ -72,8 +70,9 @@ export const sendMessage = async (to, payload) => {
       }
     );
 
-    // 🔄 Reflejar en Chatwoot (siempre que no sea un eco)
-    if (textToMirror) {
+    // 🔄 Reflejar en Chatwoot (CORREGIDO: Evita doble burbuja)
+    // Solo espejamos si el mensaje NO viene de Chatwoot originalmente.
+    if (textToMirror && payload.provenance !== "chatwoot") {
       try {
         await sendBotMessageToChatwoot(to, textToMirror);
       } catch (cwError) {

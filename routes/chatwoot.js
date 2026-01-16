@@ -61,9 +61,11 @@ router.post("/", async (req, res) => {
 
         // B. SECUNDARIO: Si no hay adjuntos, enviar como texto simple
         if (text) {
-            console.log("👤 Agente Humano -> WhatsApp (Texto):", sourceId);
+            console.log("👤 Agente Humano -> WhatsApp:", sourceId);
+
             await sendMessage(sourceId, {
-                text: { body: text }
+                text: { body: text },
+                provenance: "chatwoot" // 👈 Marcamos que viene de Chatwoot
             });
         }
 
