@@ -10,9 +10,6 @@ if (!token || !phoneNumberId) {
   process.exit(1);
 }
 
-/**
- * Envía mensajes a WhatsApp y los refleja en Chatwoot
- */
 export const sendMessage = async (to, payload) => {
   if (!to || !payload) return;
 
@@ -23,29 +20,36 @@ export const sendMessage = async (to, payload) => {
     };
 
     let textToMirror = null;
+    const type = payload.type;
 
-    // --- 1. MANEJO DE IMÁGENES ---
-    if (payload.type === "image") {
-      body.type = "image";
-      body.image = {
-        link: payload.image.link,
-        caption: payload.image.caption || ""
+    // --- 1. IMÁGENES, DOCUMENTOS Y VIDEOS ---
+    if (["image", "document", "video"].includes(type)) {
+      body.type = type;
+      body[type] = {
+        link: payload[type].link,
+        caption: payload[type].caption || ""
       };
-      textToMirror = payload.image.caption ? `📷 ${payload.image.caption}` : "📷 Imagen enviada";
+      const iconos = { image: "📷", document: "📄", video: "🎥" };
+      textToMirror = `${iconos[type]} Archivo enviado: ${payload[type].caption || type}`;
     }
 
-    // --- 2. MANEJO DE MENSAJES INTERACTIVOS (Listas/Botones) ---
-    else if (payload?.type === "interactive" || payload?.interactive) {
+    // --- 2. AUDIOS (No soportan caption) ---
+    else if (type === "audio") {
+      body.type = "audio";
+      body.audio = { link: payload.audio.link };
+      textToMirror = "🎵 Audio enviado";
+    }
+
+    // --- 3. MENSAJES INTERACTIVOS (Botones/Listas) ---
+    else if (type === "interactive") {
       body.type = "interactive";
       body.interactive = payload.interactive;
-
-      const headerText = payload.interactive.header?.text ? `${payload.interactive.header.text}\n` : "";
       const bodyText = payload.interactive.body?.text || "";
-      textToMirror = `${headerText}${bodyText}` || "📋 Menú interactivo enviado";
+      textToMirror = `📋 Menú enviado: ${bodyText}`;
     }
 
-    // --- 3. MANEJO DE TEXTO SIMPLE ---
-    else if (payload?.type === "text" || payload?.text) {
+    // --- 4. TEXTO SIMPLE ---
+    else if (type === "text" || payload.text) {
       body.type = "text";
       body.text = payload.text?.body ? payload.text : { body: payload.text };
       textToMirror = body.text.body;
@@ -56,22 +60,14 @@ export const sendMessage = async (to, payload) => {
       return;
     }
 
-    console.log(`📤 Enviando a WhatsApp (${to}):`, textToMirror?.substring(0, 50) + "...");
-
-    // 🚀 Petición a la API de WhatsApp
+    // 🚀 Petición a WhatsApp
     const response = await axios.post(
       `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
       body,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      }
+      { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
     );
 
-    // 🔄 Reflejar en Chatwoot (CORREGIDO: Evita doble burbuja)
-    // Solo espejamos si el mensaje NO viene de Chatwoot originalmente.
+    // 🔄 Espejo en Chatwoot (Solo si no viene de Chatwoot)
     if (textToMirror && payload.provenance !== "chatwoot") {
       try {
         await sendBotMessageToChatwoot(to, textToMirror);
@@ -82,8 +78,7 @@ export const sendMessage = async (to, payload) => {
 
     return response.data;
   } catch (error) {
-    const errorData = error.response?.data;
-    console.error("❌ ERROR WHATSAPP API:", JSON.stringify(errorData, null, 2) || error.message);
+    console.error("❌ ERROR WHATSAPP API:", JSON.stringify(error.response?.data, null, 2) || error.message);
     return null;
   }
 };
