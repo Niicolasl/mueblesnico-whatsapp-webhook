@@ -94,9 +94,6 @@ export const handleMessage = async (req, res = null) => {
     }
     // ===== Caso 2: viene de Chatwoot (ECO / AGENTE) =====
     else if (req.text && req.from) {
-      // 🛑 CORTE DE BUCLE DEFINITIVO: 
-      // Si el mensaje viene de Chatwoot, ya fue procesado por chatwoot.js
-      // No permitimos que el bot analice o responda a este mensaje.
       console.log("⏭️ Ignorando eco/agente de Chatwoot");
       return res?.sendStatus(200);
     } else {
@@ -105,9 +102,9 @@ export const handleMessage = async (req, res = null) => {
 
     console.log("📩 INPUT:", message.text?.body, "FROM:", from);
 
-    const fromE164 = telefonoParaWhatsApp(from);
     const text = message.text?.body?.trim() || "";
     const inputLower = text.toLowerCase();
+    const esAdmin = ADMINS.includes(from);
 
     // 👤 Cliente
     const client = await getOrCreateClient(from, profileName);
@@ -127,22 +124,37 @@ export const handleMessage = async (req, res = null) => {
       delete global.cotizacionTimers[from];
     }
 
-    const esAdmin = ADMINS.includes(from);
-
     // =====================================================
-    // 🔥 DETECCIÓN PRIORITARIA DE COTIZAR
+    // 🔥 ANALISIS DE INTENCIÓN
     // =====================================================
     const palabrasCotizar = ["cotizar", "cotizacion", "cotización", "precio", "cuanto vale", "cuánto vale"];
-    let forceCotizar = false;
+    const quiereCotizar = !esAdmin && !global.estadoCotizacion[from] && palabrasCotizar.some(p => inputLower.includes(p));
 
-    // Si detectamos intención de cotizar, activamos bandera y bloqueamos saludos
-    if (
-      !esAdmin &&
-      !global.estadoCotizacion[from] &&
-      palabrasCotizar.some(p => inputLower.includes(p))
-    ) {
-      forceCotizar = true;
-      console.log("🔥 PRIORIDAD: COTIZAR DETECTADO");
+    const saludos = [
+      "hola", "holi", "hla", "buenas", "buen día", "buen dia",
+      "buenos días", "buenos dias", "buenas tardes", "buenas noches",
+      "holaa", "buenass", "saludos",
+    ];
+    const esSaludo = saludos.some(s => inputLower === s || inputLower.startsWith(s + " "));
+
+    // Definir input maestro
+    let input = text;
+    if (quiereCotizar) {
+      input = "COTIZAR";
+    }
+
+    // =====================================================
+    // 👋 SALUDOS (Prioridad baja: solo si no hay otra intención)
+    // =====================================================
+    if (esSaludo && input !== "COTIZAR" && inputLower !== "menu" && inputLower !== "menú" && !global.estadoCotizacion[from] && !adminState[from]) {
+      const saludoHora = obtenerSaludoColombia();
+      await enviar(from, {
+        text: { body: `Hola, ${saludoHora} 😊\nEspero que estés muy bien.` },
+      });
+      await enviar(from, {
+        text: { body: "Escribe *Menú* para ver opciones, o dime qué necesitas y con gusto te ayudo." },
+      });
+      return res?.sendStatus(200);
     }
 
     // =====================================================
@@ -157,44 +169,86 @@ export const handleMessage = async (req, res = null) => {
     }
 
     // =====================================================
-    // 🟩 FORZAR FLUJO DE COTIZAR
+    // 🟩 FLUJO DE COTIZAR (Activación)
     // =====================================================
-    let input = text;
-    if (forceCotizar) {
-      input = "COTIZAR";
+    if (input === "COTIZAR") {
+      global.estadoCotizacion[from] = { step: "tipoTrabajo" };
+      await enviar(from, {
+        text: {
+          body:
+            "🪑 *Ten en cuenta qué*\n\n" +
+            "Para los muebles que requieren *tapicería*:\n" +
+            "• Se cobra únicamente la *mano de obra*.\n" +
+            "• Los materiales los adquiere el cliente, ya que su precio varía según diseño y calidad.(yo te indico cuales serían)\n\n" +
+            "Fabricamos y también *restauramos* muebles.\n\n",
+        },
+      });
+
+      await enviar(from, {
+        text: {
+          body:
+            "¿Qué es lo que necesitas hacer? 👇\n\n" +
+            "1️⃣ Fabricar un mueble nuevo\n" +
+            "2️⃣ Restaurar o tapizar un mueble\n" +
+            "3️⃣ Otro arreglo (reparaciones, rieles, chapas, instalación, etc.)\n\n" +
+            "Respóndeme con el número o escríbelo con tus propias palabras.",
+        },
+      });
+      return res.sendStatus(200);
     }
 
-    // =====================================================
-    // 👋 SALUDOS
-    // =====================================================
-    const saludos = [
-      "hola", "holi", "hla", "buenas", "buen día", "buen dia",
-      "buenos días", "buenos dias", "buenas tardes", "buenas noches",
-      "holaa", "buenass", "saludos",
-    ];
+    // 🧠 RESPUESTAS DEL FLUJO DE COTIZACIÓN (Seguimiento)
+    if (global.estadoCotizacion?.[from]) {
+      const estado = global.estadoCotizacion[from];
 
-    const esSaludo = saludos.some(
-      (saludo) => inputLower === saludo || inputLower.startsWith(saludo + " ")
-    );
+      if (estado.step === "tipoTrabajo") {
+        const textLower = inputLower;
+        if (["1", "fabricar", "nuevo"].some((x) => textLower.includes(x))) {
+          await enviar(from, {
+            text: {
+              body:
+                "🔹 *Fabricar mueble nuevo*\n\nCuéntame qué mueble tienes en mente 😊\nPuedes enviarme:\n• Fotos o referencias\n• Medidas aproximadas\n\nSi no estás segur@, también podemos asesorarte.",
+            },
+          });
+          estado.step = "detalleTrabajo";
+          estado.tipo = "fabricar";
+          return res.sendStatus(200);
+        }
+        if (["2", "restaurar", "tapizar"].some((x) => textLower.includes(x))) {
+          await enviar(from, {
+            text: {
+              body:
+                "🔹 *Restaurar o tapizar*\n\nEnvíame por favor:\n• Fotos actuales del mueble\n• Qué te gustaría cambiar o mejorar",
+            },
+          });
+          estado.step = "detalleTrabajo";
+          estado.tipo = "restaurar";
+          return res.sendStatus(200);
+        }
+        await enviar(from, {
+          text: {
+            body:
+              "🔹 *Otro arreglo*\n\nCuéntame qué necesitas hacer y, si es posible,\nenvíame una foto del área o mueble.",
+          },
+        });
+        estado.step = "detalleTrabajo";
+        estado.tipo = "otro";
+        return res.sendStatus(200);
+      }
 
-    // Cambio aquí: Si es saludo PERO también es cotización, NO entra aquí
-    if (esSaludo && !forceCotizar && !global.estadoCotizacion[from] && !adminState[from]) {
-      const saludoHora = obtenerSaludoColombia();
-      await enviar(from, {
-        text: { body: `Hola, ${saludoHora} 😊\nEspero que estés muy bien.` },
-      });
-      await enviar(from, {
-        text: { body: "Escribe *Menú* para ver opciones, o dime qué necesitas y con gusto te ayudo." },
-      });
-      return res?.sendStatus(200);
+      if (estado.step === "detalleTrabajo") {
+        programarMensajeAsesor(from);
+        delete global.estadoCotizacion[from];
+        return res.sendStatus(200);
+      }
     }
+
     // =====================================================
     // 🟪 SALDO (esperando dato)
     // =====================================================
     if (estadoCliente[from] === "esperando_dato_saldo") {
       let dato = text;
       if (/^\+?\d{10,15}$/.test(text)) dato = normalizarTelefono(text);
-
       const resultado = await consultarSaldo(dato);
 
       if (resultado?.error || !Array.isArray(resultado)) {
@@ -210,7 +264,6 @@ export const handleMessage = async (req, res = null) => {
       delete estadoCliente[from];
       return res.sendStatus(200);
     }
-
     // =====================================================
     // 🟩 ADMIN: NUEVO PEDIDO
     // =====================================================
@@ -631,87 +684,6 @@ export const handleMessage = async (req, res = null) => {
       return res.sendStatus(200);
     }
 
-    // =====================================================
-    // 🟦 CLIENTE: OPCIONES MENÚ / COTIZAR
-    // =====================================================
-
-    // IMPORTANTE: Mueve el if (input === "COTIZAR") arriba de los demás estados de cliente
-    if (input === "COTIZAR") {
-      global.estadoCotizacion[from] = { step: "tipoTrabajo" };
-
-      // Enviamos primero la advertencia
-      await enviar(from, {
-        text: {
-          body:
-            "🪑 *Ten en cuenta que:*\n\n" +
-            "Para los muebles que requieren *tapicería*:\n" +
-            "• Se cobra únicamente la *mano de obra*.\n" +
-            "• Los materiales los adquiere el cliente (yo te indico cuáles).\n\n" +
-            "Fabricamos y también *restauramos* muebles.",
-        },
-      });
-
-      // Enviamos la pregunta
-      await enviar(from, {
-        text: {
-          body:
-            "¿Qué necesitas hacer? 👇\n\n" +
-            "1️⃣ Fabricar un mueble nuevo\n" +
-            "2️⃣ Restaurar o tapizar un mueble\n" +
-            "3️⃣ Otro arreglo\n\n" +
-            "Responde con el número o tu mensaje.",
-        },
-      });
-      return res.sendStatus(200);
-    }
-
-    // 🧠 RESPUESTAS DEL FLUJO DE COTIZACIÓN
-    if (global.estadoCotizacion?.[from]) {
-      const estado = global.estadoCotizacion[from];
-
-      // PASO 1: tipo de trabajo
-      if (estado.step === "tipoTrabajo") {
-        const textLower = inputLower;
-        if (["1", "fabricar", "nuevo"].some((x) => textLower.includes(x))) {
-          await enviar(from, {
-            text: {
-              body:
-                "🔹 *Fabricar mueble nuevo*\n\nCuéntame qué mueble tienes en mente 😊\nPuedes enviarme:\n• Fotos o referencias\n• Medidas aproximadas\n\nSi no estás segur@, también podemos asesorarte.",
-            },
-          });
-          estado.step = "detalleTrabajo";
-          estado.tipo = "fabricar";
-          return res.sendStatus(200);
-        }
-        if (["2", "restaurar", "tapizar"].some((x) => textLower.includes(x))) {
-          await enviar(from, {
-            text: {
-              body:
-                "🔹 *Restaurar o tapizar*\n\nEnvíame por favor:\n• Fotos actuales del mueble\n• Qué te gustaría cambiar o mejorar",
-            },
-          });
-          estado.step = "detalleTrabajo";
-          estado.tipo = "restaurar";
-          return res.sendStatus(200);
-        }
-        await enviar(from, {
-          text: {
-            body:
-              "🔹 *Otro arreglo*\n\nCuéntame qué necesitas hacer y, si es posible,\nenvíame una foto del área o mueble.",
-          },
-        });
-        estado.step = "detalleTrabajo";
-        estado.tipo = "otro";
-        return res.sendStatus(200);
-      }
-
-      // PASO FINAL: detalle del trabajo
-      if (estado.step === "detalleTrabajo") {
-        programarMensajeAsesor(from);
-        delete global.estadoCotizacion[from];
-        return res.sendStatus(200);
-      }
-    }
     // =====================================================
     // 📦 CLIENTE: ESTADO DE PEDIDO
     // =====================================================

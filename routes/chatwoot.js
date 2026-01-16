@@ -12,36 +12,37 @@ router.post("/", async (req, res) => {
             return res.sendStatus(200);
         }
 
-        // 2. FILTRO DE BOT MEJORADO
-        // Ignorar si tiene marca 'from_bot' O si el remitente es tipo 'bot'
-        const isBot = event.additional_attributes?.from_bot === true || event.sender?.type === "bot";
+        // 2. 🔥 FILTRO ANTI-BUCLE ULTRA (Si el remitente es Bot o es un mensaje automatizado)
+        const isBot = event.additional_attributes?.from_bot === true ||
+            event.sender?.type === "bot" ||
+            !event.sender; // Los mensajes de sistema a veces no tienen sender
 
-        if (isBot) {
-            console.log("⏭️ Filtrando mensaje automático (Bot)");
+        // 3. 🔥 FILTRO DE CONTENIDO (Si el texto coincide con lo que envía el bot)
+        const text = event.content?.trim() || "";
+        const esMensajeBot = [
+            "Espero que estés muy bien",
+            "Escribe *Menú*",
+            "¿Qué es lo que necesitas hacer?",
+            "Ten en cuenta que",
+            "Un asesor te contactará"
+        ].some(frase => text.includes(frase));
+
+        if (isBot || esMensajeBot) {
+            console.log("⏭️ Filtrando eco del Bot detectado en el contenido.");
             return res.sendStatus(200);
         }
 
-        // 3. Extraer destinatario (source_id es el teléfono con +57)
         const sourceId = event.conversation?.contact_inbox?.source_id;
+        if (!sourceId || !text) return res.sendStatus(200);
 
-        // 4. Si el mensaje NO TIENE contenido de texto (es interactivo/bot), ignorar
-        // Los agentes humanos siempre escriben texto plano.
-        if (!sourceId || !event.content) {
-            return res.sendStatus(200);
-        }
+        console.log("👤 Agente Humano Manual -> WhatsApp:", sourceId);
 
-        const text = event.content.trim();
-
-        console.log("👤 Agente Humano -> WhatsApp:", sourceId);
-
-        await sendMessage(sourceId, {
-            text: { body: text }
-        });
+        await sendMessage(sourceId, { text: { body: text } });
 
         return res.sendStatus(200);
     } catch (err) {
         console.error("❌ Chatwoot webhook error:", err.message);
-        return res.sendStatus(200); // Siempre responder 200 para evitar reintentos de Chatwoot
+        return res.sendStatus(200);
     }
 });
 
