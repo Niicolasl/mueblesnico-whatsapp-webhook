@@ -65,43 +65,41 @@ async function getOrCreateConversation(e164, contactId) {
     if (conversationCache.has(e164)) return conversationCache.get(e164);
 
     try {
-        // 1. BUSCAR POR SOURCE_ID (El método más efectivo)
-        // Buscamos en todas las conversaciones de la cuenta que coincidan con el teléfono
-        const res = await axios.get(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`, {
-            params: { q: e164 }, // Chatwoot busca el source_id aquí
+        // 1. Buscamos conversaciones directamente vinculadas al CONTACTO
+        // Esto es mucho más preciso que buscar en toda la cuenta
+        const res = await axios.get(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contactId}/conversations`, {
             headers
         });
 
         const conversations = res.data?.payload || [];
 
-        // Filtramos la que pertenezca a nuestro Inbox y no esté resuelta
+        // Buscamos la que pertenezca a nuestro Inbox y no esté resuelta
         const existingConvo = conversations.find(c =>
-            Number(c.inbox_id) === INBOX_ID &&
-            c.status !== 'resolved' &&
-            (c.meta?.sender?.phone_number === e164 || c.source_id === e164)
+            Number(c.inbox_id) === INBOX_ID && c.status !== 'resolved'
         );
 
         if (existingConvo) {
-            console.log(`✅ Conversación encontrada por SourceID: ${existingConvo.id}`);
             conversationCache.set(e164, existingConvo.id);
             return existingConvo.id;
         }
 
-        // 2. SI NO EXISTE, RECIÉN AHÍ CREAMOS
-        console.log("✨ No se encontró conversación previa. Creando una nueva...");
+        // 2. Si no existe, la creamos. 
+        // TIP: Si falla aquí, el problema es que el INBOX_ID (91455) no es tipo API.
         const convo = await axios.post(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`, {
-            source_id: e164, // IMPORTANTE: Esto es lo que vincula futuros mensajes
+            source_id: e164,
             inbox_id: INBOX_ID,
             contact_id: contactId,
             status: "open"
         }, { headers });
 
-        const convoId = convo.data?.id;
+        // IMPORTANTE: En la creación, Chatwoot devuelve el objeto dentro de 'data' o 'payload'
+        const convoId = convo.data?.id || convo.data?.payload?.id;
+
         conversationCache.set(e164, convoId);
         return convoId;
 
     } catch (error) {
-        console.error("❌ Error Crítico en getOrCreateConversation:", error.response?.data || error.message);
+        console.error("❌ Error Crítico en getOrCreateConversation:", error.response?.status, error.response?.data);
         return null;
     }
 }

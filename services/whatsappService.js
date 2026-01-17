@@ -135,14 +135,11 @@ export const handleMessage = async (req, res) => {
     let forceCotizar = false;
 
     console.log("📩 INPUT:", input, "FROM:", from);
-
-    // 🛡️ Sincronizar con Chatwoot
-    try {
-      await forwardToChatwoot(from, client.name, message);
-    } catch (err) {
-      console.error("⚠️ Error Chatwoot:", err?.message);
-    }
-
+    
+    // 🛡️ Sincronizar con Chatwoot (Versión optimizada)
+    forwardToChatwoot(from, client.name, message).catch(err => {
+      console.error("⚠️ Error en Chatwoot (silenciado):", err.message);
+    });
     const estado = global.estadoCliente;
     const esAdmin = ADMINS.includes(from);
 
