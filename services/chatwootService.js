@@ -61,63 +61,50 @@ async function getOrCreateContact(e164, name) {
 // ===============================
 // 💬 CONVERSACIONES (BLINDADO)
 // ===============================
-// ===============================
-// 💬 CONVERSACIONES (CORRECTO CHATWOOT API)
-// ===============================
 async function getOrCreateConversation(e164, contactId) {
-    if (conversationCache.has(e164)) {
-        return conversationCache.get(e164);
-    }
+    if (conversationCache.has(e164)) return conversationCache.get(e164);
 
     try {
-        // 1️⃣ Buscar conversaciones del contacto
-        const res = await axios.get(
-            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contactId}/conversations`,
-            { headers }
-        );
+        // 1. BUSCAR POR SOURCE_ID (El método más efectivo)
+        // Buscamos en todas las conversaciones de la cuenta que coincidan con el teléfono
+        const res = await axios.get(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`, {
+            params: { q: e164 }, // Chatwoot busca el source_id aquí
+            headers
+        });
 
         const conversations = res.data?.payload || [];
 
-        const existing = conversations.find(c =>
-            Number(c.inbox_id) === Number(INBOX_ID) &&
-            c.status !== "resolved"
+        // Filtramos la que pertenezca a nuestro Inbox y no esté resuelta
+        const existingConvo = conversations.find(c =>
+            Number(c.inbox_id) === INBOX_ID &&
+            c.status !== 'resolved' &&
+            (c.meta?.sender?.phone_number === e164 || c.source_id === e164)
         );
 
-        if (existing) {
-            conversationCache.set(e164, existing.id);
-            return existing.id;
+        if (existingConvo) {
+            console.log(`✅ Conversación encontrada por SourceID: ${existingConvo.id}`);
+            conversationCache.set(e164, existingConvo.id);
+            return existingConvo.id;
         }
 
-        // 2️⃣ Crear conversación (FORMA CORRECTA)
-        const convo = await axios.post(
-            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contactId}/conversations`,
-            {
-                inbox_id: INBOX_ID,
-                source_id: e164
-            },
-            { headers }
-        );
+        // 2. SI NO EXISTE, RECIÉN AHÍ CREAMOS
+        console.log("✨ No se encontró conversación previa. Creando una nueva...");
+        const convo = await axios.post(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`, {
+            source_id: e164, // IMPORTANTE: Esto es lo que vincula futuros mensajes
+            inbox_id: INBOX_ID,
+            contact_id: contactId,
+            status: "open"
+        }, { headers });
 
-        const convoId = convo.data?.payload?.id;
-
-        if (!convoId) {
-            console.error("❌ Chatwoot no devolvió conversation id:", convo.data);
-            return null;
-        }
-
+        const convoId = convo.data?.id;
         conversationCache.set(e164, convoId);
         return convoId;
 
     } catch (error) {
-        console.error(
-            "❌ Error Crítico en getOrCreateConversation:",
-            error.response?.status,
-            error.response?.data
-        );
+        console.error("❌ Error Crítico en getOrCreateConversation:", error.response?.data || error.message);
         return null;
     }
 }
-
 
 /**
  * 📥 RECEPTOR: WhatsApp -> Chatwoot
