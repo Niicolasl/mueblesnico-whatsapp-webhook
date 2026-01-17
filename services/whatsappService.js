@@ -304,14 +304,166 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // Lógica de /abono
-      if (inputLower === "/abono") {
-        adminState[from] = { step: "anticipo_codigo" };
-        await enviar(from, { text: { body: "📌 Ingresa el *código del pedido*" } });
+
+    // =====================================================
+    // 🟩 ADMIN: ANTICIPO
+    // =====================================================
+
+      if (esAdmin && inputLower === "/abono") {
+      adminState[from] = { step: "anticipo_codigo" };
+
+      await enviar(from, {
+        text: {
+          body: "📌 Ingresa el *código del pedido*",
+        },
+      });
+
+      return res.sendStatus(200);
+    }
+
+    if (esAdmin && adminState[from]?.step === "anticipo_codigo") {
+      const codigo = input.toUpperCase();
+
+      const validacion = await obtenerPedidoActivo(codigo);
+
+      if (validacion.error === "NO_EXISTE") {
+        await enviar(from, {
+          text: { body: "❌ El pedido no existe." },
+        });
+        delete adminState[from];
         return res.sendStatus(200);
       }
 
-      // ... (Aquí se ejecutan las sub-lógicas de estado_codigo y anticipo_codigo que ya tienes implementadas)
+      if (validacion.error === "CANCELADO") {
+        await enviar(from, {
+          text: { body: "❌ Este pedido está CANCELADO y no admite cambios." },
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
+
+      const pedido = validacion.pedido;
+
+      // ✅ VALIDACIÓN CLAVE: ya está pagado
+      if (Number(pedido.saldo_pendiente) <= 0) {
+        await enviar(from, {
+          text: {
+            body:
+              "✅ Este pedido ya se encuentra *completamente pagado*.\n\n" +
+              "No es posible registrar más anticipos.",
+          },
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
+
+      adminState[from].orderCode = codigo;
+      adminState[from].step = "anticipo_valor";
+
+      await enviar(from, {
+        text: {
+          body:
+            `💵 Ingresa el *valor abonado*\n` +
+            `Saldo pendiente: $${Number(
+              pedido.saldo_pendiente
+            ).toLocaleString()}`,
+        },
+      });
+
+      return res.sendStatus(200);
+    }
+
+    if (esAdmin && adminState[from]?.step === "anticipo_valor") {
+      const base = Number(input.replace(/[^\d]/g, ""));
+      const valor = base * 1000;
+
+
+      if (!valor || valor <= 0) {
+        await enviar(from, {
+          text: {
+            body: "❌ Valor inválido. Ingresa solo números.",
+          },
+        });
+        return res.sendStatus(200);
+      }
+
+      const result = await registrarAnticipo(adminState[from].orderCode, valor);
+
+      // ❌ Excede saldo
+      if (result?.error === "EXCEDE_SALDO") {
+        await enviar(from, {
+          text: {
+            body:
+              `❌ El valor ingresado excede el saldo pendiente.\n\n` +
+              `Saldo actual: $${Number(result.saldo).toLocaleString()}`,
+          },
+        });
+        return res.sendStatus(200);
+      }
+
+      // ✅ Ya estaba pagado (corte total del flujo)
+      if (result?.error === "PAGADO") {
+        await enviar(from, {
+          text: {
+            body: "✅ Este pedido ya se encuentra completamente pagado.",
+          },
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
+
+      if (!result) {
+        await enviar(from, {
+          text: {
+            body: "❌ No se pudo registrar el anticipo. Verifica el código.",
+          },
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
+
+      delete adminState[from];
+
+      // ✅ Mensaje al ADMIN
+      await enviar(from, {
+        text: {
+          body:
+            `✅ *Anticipo registrado*\n\n` +
+            `Pedido: ${result.order_code}\n` +
+            `Abonado total: $${Number(
+              result.valor_abonado
+            ).toLocaleString()}\n` +
+            `Saldo pendiente: $${Number(
+              result.saldo_pendiente
+            ).toLocaleString()}`,
+        },
+      });
+
+      // ✅ Mensaje al CLIENTE
+      let mensajeCliente =
+        `💳 *Hemos recibido tu abono*\n\n` +
+        `Pedido: ${result.order_code}\n` +
+        `Abono recibido: $${valor.toLocaleString()}\n` +
+        `Saldo pendiente: $${Number(
+          result.saldo_pendiente
+        ).toLocaleString()}\n\n` +
+        `Gracias por tu pago 🙌`;
+
+      if (Number(result.saldo_pendiente) <= 0) {
+        mensajeCliente =
+          `🎉 *¡Pago completado!*\n\n` +
+          `Tu pedido *${result.order_code}* ya se encuentra completamente pagado.\n` +
+          `¡Gracias por confiar en Muebles Nico!`;
+      }
+
+      await enviar(result.numero_whatsapp, {
+        text: {
+          body: mensajeCliente,
+        },
+      });
+
+      return res.sendStatus(200);
+    }
     }
 
     // =====================================================
