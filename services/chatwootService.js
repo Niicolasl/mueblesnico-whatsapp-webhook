@@ -62,46 +62,35 @@ async function getOrCreateContact(e164, name) {
 // 💬 CONVERSACIONES (BLINDADO)
 // ===============================
 async function getOrCreateConversation(e164, contactId) {
-    // 1. Revisar cache (rápido)
     if (conversationCache.has(e164)) return conversationCache.get(e164);
 
-    console.log(`🔎 Buscando chats previos en API para ${e164}...`);
-
     try {
-        // 2. Buscar en la API
-        const res = await axios.get(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contactId}/conversations`, {
+        // 1. BUSCAR POR SOURCE_ID (El método más efectivo)
+        // Buscamos en todas las conversaciones de la cuenta que coincidan con el teléfono
+        const res = await axios.get(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`, {
+            params: { q: e164 }, // Chatwoot busca el source_id aquí
             headers
         });
 
         const conversations = res.data?.payload || [];
 
-        // --- DEBUGGING: Ver qué devuelve Chatwoot ---
-        // Si sigue fallando, copiaremos este log para entender por qué
-        if (conversations.length > 0) {
-            console.log(`📄 Chatwoot devolvió ${conversations.length} conversaciones. Estados:`, conversations.map(c => `${c.id} (${c.status}) Inbox:${c.inbox_id}`));
-        } else {
-            console.log("📄 Chatwoot devolvió 0 conversaciones.");
-        }
-        // ---------------------------------------------
-
-        // 3. Filtrado INTELIGENTE
-        // Buscamos cualquier chat que NO esté resuelto (finalizado).
-        // Aceptamos 'open', 'pending', 'snoozed', etc.
-        const activeConversation = conversations.find(c =>
+        // Filtramos la que pertenezca a nuestro Inbox y no esté resuelta
+        const existingConvo = conversations.find(c =>
             Number(c.inbox_id) === INBOX_ID &&
-            c.status !== 'resolved'
+            c.status !== 'resolved' &&
+            (c.meta?.sender?.phone_number === e164 || c.source_id === e164)
         );
 
-        if (activeConversation) {
-            console.log(`✅ Conversación ACTIVA recuperada: ID ${activeConversation.id}`);
-            conversationCache.set(e164, activeConversation.id);
-            return activeConversation.id;
+        if (existingConvo) {
+            console.log(`✅ Conversación encontrada por SourceID: ${existingConvo.id}`);
+            conversationCache.set(e164, existingConvo.id);
+            return existingConvo.id;
         }
 
-        // 4. Si no hay activa, creamos una nueva
-        console.log("✨ No hay chat activo. Creando nueva conversación...");
+        // 2. SI NO EXISTE, RECIÉN AHÍ CREAMOS
+        console.log("✨ No se encontró conversación previa. Creando una nueva...");
         const convo = await axios.post(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`, {
-            source_id: e164,
+            source_id: e164, // IMPORTANTE: Esto es lo que vincula futuros mensajes
             inbox_id: INBOX_ID,
             contact_id: contactId,
             status: "open"
@@ -112,13 +101,10 @@ async function getOrCreateConversation(e164, contactId) {
         return convoId;
 
     } catch (error) {
-        console.error("❌ Error Conversación:", error.response?.data || error.message);
+        console.error("❌ Error Crítico en getOrCreateConversation:", error.response?.data || error.message);
         return null;
     }
 }
-
-// ... Resto del código (forwardToChatwoot y sendBotMessageToChatwoot) sigue igual ...
-// Solo asegúrate de copiar las funciones de abajo también:
 
 /**
  * 📥 RECEPTOR: WhatsApp -> Chatwoot
