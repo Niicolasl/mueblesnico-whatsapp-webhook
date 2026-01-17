@@ -5,7 +5,8 @@ import 'dotenv/config';
 const CHATWOOT_BASE = process.env.CHATWOOT_BASE;
 const CHATWOOT_TOKEN = process.env.CHATWOOT_API_TOKEN;
 const ACCOUNT_ID = process.env.CHATWOOT_ACCOUNT_ID;
-const INBOX_ID = Number(process.env.INBOX_ID); // 👈 Forzamos a número para evitar errores
+// Forzamos conversión a número para evitar errores de comparación
+const INBOX_ID = Number(process.env.INBOX_ID);
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 
 const headers = {
@@ -14,7 +15,6 @@ const headers = {
 };
 
 export const lastSentMessages = new Set();
-// Aunque se reinicie el servidor, la lógica de abajo nos salvará.
 const conversationCache = new Map();
 
 function toE164(phone) {
@@ -25,7 +25,7 @@ function toE164(phone) {
 }
 
 // ===============================
-// 👤 CONTACTOS: Búsqueda exacta
+// 👤 CONTACTOS
 // ===============================
 async function getOrCreateContact(e164, name) {
     try {
@@ -34,12 +34,10 @@ async function getOrCreateContact(e164, name) {
         });
 
         const results = search.data?.payload || [];
+        // Búsqueda estricta para evitar falsos positivos
+        const existing = results.find(c => c.phone_number === e164);
+        if (existing) return existing.id;
 
-        // Buscamos coincidencia EXACTA de teléfono para no mezclar contactos
-        const existingContact = results.find(c => c.phone_number === e164);
-        if (existingContact) return existingContact.id;
-
-        // Si no existe, crear
         const res = await axios.post(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts`, {
             name: name || e164,
             phone_number: e164,
@@ -47,49 +45,61 @@ async function getOrCreateContact(e164, name) {
         }, { headers });
 
         return res.data?.payload?.contact?.id;
-    } catch (error) {
-        console.error("❌ Error Contacto:", error.response?.data || error.message);
-        // Fallback: Si falla la creación (ej. duplicado que la búsqueda no vio), intentamos buscar de nuevo
-        if (error.response?.data?.message?.includes('exist')) {
-            const retrySearch = await axios.get(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/search`, {
+    } catch (e) {
+        // Fallback: si falla por duplicado, intentamos buscar de nuevo
+        if (e.response?.data?.message?.includes('exist')) {
+            const retry = await axios.get(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/search`, {
                 params: { q: e164 }, headers
             });
-            return retrySearch.data?.payload?.[0]?.id;
+            return retry.data?.payload?.[0]?.id;
         }
-        throw error;
+        console.error("❌ Error Contacto:", e.message);
+        throw e;
     }
 }
 
 // ===============================
-// 💬 CONVERSACIONES: Recuperación robusta
+// 💬 CONVERSACIONES (BLINDADO)
 // ===============================
 async function getOrCreateConversation(e164, contactId) {
-    // 1. Revisar memoria (rápido, pero se borra al reiniciar)
+    // 1. Revisar cache (rápido)
     if (conversationCache.has(e164)) return conversationCache.get(e164);
 
+    console.log(`🔎 Buscando chats previos en API para ${e164}...`);
+
     try {
-        // 2. Buscar en la API conversaciones de este contacto
+        // 2. Buscar en la API
         const res = await axios.get(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contactId}/conversations`, {
             headers
         });
 
         const conversations = res.data?.payload || [];
 
-        // 🔎 BUSCAR SI YA EXISTE UNA ABIERTA O PENDIENTE
-        // Comparamos Number(inbox_id) para asegurar que coincida aunque uno sea string y otro int
-        const open = conversations.find(c =>
-            (c.status === "open" || c.status === "pending") &&
-            Number(c.inbox_id) === INBOX_ID
+        // --- DEBUGGING: Ver qué devuelve Chatwoot ---
+        // Si sigue fallando, copiaremos este log para entender por qué
+        if (conversations.length > 0) {
+            console.log(`📄 Chatwoot devolvió ${conversations.length} conversaciones. Estados:`, conversations.map(c => `${c.id} (${c.status}) Inbox:${c.inbox_id}`));
+        } else {
+            console.log("📄 Chatwoot devolvió 0 conversaciones.");
+        }
+        // ---------------------------------------------
+
+        // 3. Filtrado INTELIGENTE
+        // Buscamos cualquier chat que NO esté resuelto (finalizado).
+        // Aceptamos 'open', 'pending', 'snoozed', etc.
+        const activeConversation = conversations.find(c =>
+            Number(c.inbox_id) === INBOX_ID &&
+            c.status !== 'resolved'
         );
 
-        if (open) {
-            console.log(`🔄 Conversación existente encontrada: ${open.id}`);
-            conversationCache.set(e164, open.id);
-            return open.id;
+        if (activeConversation) {
+            console.log(`✅ Conversación ACTIVA recuperada: ID ${activeConversation.id}`);
+            conversationCache.set(e164, activeConversation.id);
+            return activeConversation.id;
         }
 
-        // 3. Si no hay ninguna activa, CREAR NUEVA
-        console.log("✨ Creando nueva conversación...");
+        // 4. Si no hay activa, creamos una nueva
+        console.log("✨ No hay chat activo. Creando nueva conversación...");
         const convo = await axios.post(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`, {
             source_id: e164,
             inbox_id: INBOX_ID,
@@ -107,6 +117,9 @@ async function getOrCreateConversation(e164, contactId) {
     }
 }
 
+// ... Resto del código (forwardToChatwoot y sendBotMessageToChatwoot) sigue igual ...
+// Solo asegúrate de copiar las funciones de abajo también:
+
 /**
  * 📥 RECEPTOR: WhatsApp -> Chatwoot
  */
@@ -114,7 +127,7 @@ export async function forwardToChatwoot(phone, name, messageObject) {
     try {
         const e164 = toE164(phone);
         const contactId = await getOrCreateContact(e164, name);
-        if (!contactId) return;
+        if (!contactId) return; // Evita crash si falla contacto
 
         const conversationId = await getOrCreateConversation(e164, contactId);
         if (!conversationId) return;
@@ -122,13 +135,12 @@ export async function forwardToChatwoot(phone, name, messageObject) {
         const type = messageObject.type;
         const supportedMedia = ["image", "audio", "document", "video"];
 
-        // --- 📂 CASO MULTIMEDIA ---
+        // --- 📂 MULTIMEDIA ---
         if (supportedMedia.includes(type)) {
             const mediaData = messageObject[type];
-            const mediaId = mediaData.id;
             const caption = mediaData.caption || "";
 
-            const mediaMeta = await axios.get(`https://graph.facebook.com/v20.0/${mediaId}`, {
+            const mediaMeta = await axios.get(`https://graph.facebook.com/v20.0/${mediaData.id}`, {
                 headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` }
             });
 
@@ -157,7 +169,7 @@ export async function forwardToChatwoot(phone, name, messageObject) {
             return;
         }
 
-        // --- 💬 CASO TEXTO ---
+        // --- 💬 TEXTO ---
         let content = messageObject.text?.body;
         if (!content && messageObject.interactive) {
             const reply = messageObject.interactive.button_reply || messageObject.interactive.list_reply;
@@ -176,9 +188,6 @@ export async function forwardToChatwoot(phone, name, messageObject) {
     }
 }
 
-/**
- * 🤖 BOT: Espeja mensajes del BOT
- */
 export async function sendBotMessageToChatwoot(phone, text) {
     try {
         const e164 = toE164(phone);
