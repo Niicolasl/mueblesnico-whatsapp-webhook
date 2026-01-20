@@ -2,10 +2,10 @@ import axios from "axios";
 import FormData from 'form-data';
 import 'dotenv/config';
 
-const CHATWOOT_BASE = process.env.CHATWOOT_BASE; // https://app.chatwoot.com (SIN /api/v1)
+const CHATWOOT_BASE = process.env.CHATWOOT_BASE; // https://app.chatwoot.com
 const CHATWOOT_TOKEN = process.env.CHATWOOT_API_TOKEN;
 const ACCOUNT_ID = process.env.CHATWOOT_ACCOUNT_ID;
-const INBOX_ID = Number(process.env.CHATWOOT_INBOX_ID); // ⚠️ ERA INBOX_ID, DEBERÍA SER CHATWOOT_INBOX_ID
+const INBOX_ID = Number(process.env.CHATWOOT_INBOX_ID);
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 
 const headers = {
@@ -35,96 +35,119 @@ async function getOrCreateContact(e164, name) {
         const results = search.data?.payload || [];
         const existing = results.find(c => c.phone_number === e164);
         if (existing) {
-            console.log(`✅ Contacto existente: ${existing.id}`);
+            console.log(`✅ Contacto existente ID: ${existing.id} (${e164})`);
             return existing.id;
         }
 
-        console.log(`✨ Creando contacto: ${e164}`);
+        console.log(`✨ Creando contacto nuevo: ${e164}`);
         const res = await axios.post(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts`, {
             name: name || e164,
             phone_number: e164,
             identifier: e164
         }, { headers });
 
-        return res.data?.payload?.contact?.id;
+        const newId = res.data?.payload?.contact?.id;
+        console.log(`✅ Contacto creado ID: ${newId}`);
+        return newId;
     } catch (e) {
         if (e.response?.data?.message?.includes('already been taken')) {
-            console.log("⚠️ Contacto ya existe (error duplicado), reintentando búsqueda...");
+            console.log("⚠️ Error duplicado, reintentando búsqueda...");
             const retry = await axios.get(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/search`, {
                 params: { q: e164 }, headers
             });
             const found = retry.data?.payload?.find(c => c.phone_number === e164);
-            if (found) return found.id;
+            if (found) {
+                console.log(`✅ Contacto encontrado en retry ID: ${found.id}`);
+                return found.id;
+            }
         }
-        console.error("❌ Error Contacto:", e.response?.data || e.message);
+        console.error("❌ Error getOrCreateContact:", e.response?.data || e.message);
         throw e;
     }
 }
 
 // ===============================
-// 💬 CONVERSACIONES
+// 💬 CONVERSACIONES (FIXED)
 // ===============================
 async function getOrCreateConversation(e164, contactId) {
+    // 1. Verificar caché
     if (conversationCache.has(e164)) {
-        console.log(`🔄 Usando conversación en caché para ${e164}`);
-        return conversationCache.get(e164);
+        const cachedId = conversationCache.get(e164);
+        console.log(`🔄 Usando conversación en caché: ${cachedId} para ${e164}`);
+        return cachedId;
     }
 
     try {
-        // 1. Buscar conversaciones del contacto
-        const res = await axios.get(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contactId}/conversations`, {
-            headers
-        });
-
-        const conversations = res.data?.payload || [];
-
-        // Buscar conversación abierta en el inbox correcto
-        const existingConvo = conversations.find(c =>
-            Number(c.inbox_id) === INBOX_ID &&
-            c.status !== 'resolved'
+        // 2. Buscar conversaciones del contacto (método correcto)
+        console.log(`🔍 Buscando conversaciones del contacto ${contactId}...`);
+        const res = await axios.get(
+            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contactId}/conversations`,
+            { headers }
         );
 
+        const conversations = res.data?.payload || [];
+        console.log(`📋 Encontradas ${conversations.length} conversaciones para contacto ${contactId}`);
+
+        // 3. Buscar conversación abierta en el inbox correcto
+        const existingConvo = conversations.find(c => {
+            const isCorrectInbox = Number(c.inbox_id) === INBOX_ID;
+            const isOpen = c.status !== 'resolved';
+
+            if (isCorrectInbox && isOpen) {
+                console.log(`   ✓ Conversación ${c.id}: inbox=${c.inbox_id}, status=${c.status}`);
+            }
+
+            return isCorrectInbox && isOpen;
+        });
+
         if (existingConvo) {
-            console.log(`✅ Conversación encontrada: ${existingConvo.id}`);
             conversationCache.set(e164, existingConvo.id);
+            console.log(`✅ Conversación encontrada y cacheada: ${existingConvo.id}`);
             return existingConvo.id;
         }
 
-        // 2. Crear nueva conversación
-        console.log(`✨ Creando nueva conversación para ${e164}`);
-        const convo = await axios.post(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`, {
-            source_id: e164,
-            inbox_id: INBOX_ID,
-            contact_id: contactId,
-            status: "open"
-        }, { headers });
+        // 4. Si no existe, crear nueva
+        console.log(`✨ No hay conversación abierta. Creando nueva...`);
+        const convo = await axios.post(
+            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`,
+            {
+                source_id: e164,
+                inbox_id: INBOX_ID,
+                contact_id: contactId,
+                status: "open"
+            },
+            { headers }
+        );
 
         const convoId = convo.data?.id;
         conversationCache.set(e164, convoId);
-        console.log(`✅ Conversación creada: ${convoId}`);
+        console.log(`✅ Conversación creada y cacheada: ${convoId}`);
         return convoId;
 
     } catch (error) {
-        console.error("❌ Error en getOrCreateConversation:", error.response?.data || error.message);
+        console.error("❌ Error getOrCreateConversation:", error.response?.data || error.message);
+        console.error("   Stack:", error.stack);
         return null;
     }
 }
 
 /**
- * 📥 RECEPTOR: WhatsApp -> Chatwoot (mensaje del cliente)
+ * 📥 WhatsApp → Chatwoot (mensaje del cliente)
  */
 export async function forwardToChatwoot(phone, name, messageObject) {
     try {
+        console.log(`📥 forwardToChatwoot: ${phone} → "${messageObject.text?.body?.substring(0, 30) || messageObject.type}"`);
+
         const e164 = toE164(phone);
         const contactId = await getOrCreateContact(e164, name);
         if (!contactId) {
-            console.error("❌ No se pudo obtener contactId");
+            console.error("❌ No se pudo obtener contactId, abortando");
             return;
         }
 
         const conversationId = await getOrCreateConversation(e164, contactId);
         if (!conversationId) {
-            console.error("❌ No se pudo obtener conversationId");
+            console.error("❌ No se pudo obtener conversationId, abortando");
             return;
         }
 
@@ -135,6 +158,8 @@ export async function forwardToChatwoot(phone, name, messageObject) {
         if (supportedMedia.includes(type)) {
             const mediaData = messageObject[type];
             const caption = mediaData.caption || "";
+
+            console.log(`📎 Procesando multimedia tipo: ${type}`);
 
             const mediaMeta = await axios.get(`https://graph.facebook.com/v20.0/${mediaData.id}`, {
                 headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` }
@@ -179,18 +204,21 @@ export async function forwardToChatwoot(phone, name, messageObject) {
                 { content: content, message_type: "incoming" },
                 { headers }
             );
-            console.log(`✅ Mensaje del cliente enviado a Chatwoot: "${content.substring(0, 50)}..."`);
+            console.log(`✅ Mensaje del cliente enviado: "${content.substring(0, 50)}"`);
         }
     } catch (err) {
         console.error("❌ Error forwardToChatwoot:", err.response?.data || err.message);
+        console.error("   Stack:", err.stack);
     }
 }
 
 /**
- * 📤 EMISOR: Bot -> Chatwoot (mensaje del bot)
+ * 📤 Bot → Chatwoot (mensaje del bot)
  */
 export async function sendBotMessageToChatwoot(phone, text) {
     try {
+        console.log(`📤 sendBotMessageToChatwoot: ${phone} → "${text.substring(0, 30)}"`);
+
         const e164 = toE164(phone);
         const contactId = await getOrCreateContact(e164, e164);
         if (!contactId) return;
@@ -207,9 +235,10 @@ export async function sendBotMessageToChatwoot(phone, text) {
         if (res.data?.id) {
             lastSentMessages.add(res.data.id);
             setTimeout(() => lastSentMessages.delete(res.data.id), 10000);
-            console.log(`✅ Mensaje del bot enviado a Chatwoot: "${text.substring(0, 50)}..."`);
+            console.log(`✅ Mensaje del bot enviado a Chatwoot`);
         }
     } catch (err) {
         console.error("❌ Error sendBotMessageToChatwoot:", err.response?.data || err.message);
+        console.error("   Stack:", err.stack);
     }
 }
