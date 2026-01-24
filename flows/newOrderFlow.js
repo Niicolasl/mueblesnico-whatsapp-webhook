@@ -1,5 +1,9 @@
 import { createOrder } from "../db/orders.js";
 import { sendMessage } from "../services/whatsappSender.js";
+import {
+    sincronizarEtiquetasCliente,
+    actualizarAtributosCliente
+} from "../services/chatwootService.js";
 
 /**
  * Estado del flujo por admin
@@ -108,7 +112,6 @@ export async function handleNewOrderStep(admin, message) {
             const base = Number(texto.replace(/\D/g, ""));
             const valor = base * 1000;
 
-
             if (!base || base <= 0) {
                 await sendMessage(admin, {
                     messaging_product: "whatsapp",
@@ -171,6 +174,15 @@ export async function handleNewOrderStep(admin, message) {
                             "Te avisaremos cuando haya novedades 🙌"
                     }
                 });
+
+                // 🏷️ SINCRONIZAR CHATWOOT (NUEVO)
+                try {
+                    await sincronizarEtiquetasCliente(order.numero_whatsapp);
+                    await actualizarAtributosCliente(order.numero_whatsapp);
+                    console.log(`✅ Chatwoot sincronizado para pedido ${order.order_code}`);
+                } catch (err) {
+                    console.error("⚠️ Error sincronizando Chatwoot:", err.message);
+                }
 
                 delete newOrderState[admin];
             } else {

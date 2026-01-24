@@ -6,7 +6,11 @@ import {
 
 // 🛡️ Imports para Chatwoot y Clientes
 import { getOrCreateClient } from "../db/clients.js";
-import { forwardToChatwoot } from "../services/chatwootService.js";
+import {
+  forwardToChatwoot,
+  sincronizarEtiquetasCliente,
+  actualizarAtributosCliente
+} from "../services/chatwootService.js";
 
 // ⏱️ Timers de cotización (por cliente)
 global.cotizacionTimers = global.cotizacionTimers || {};
@@ -264,6 +268,7 @@ export const handleMessage = async (req, res) => {
       await enviar(from, menuPrincipal());
       return res.sendStatus(200);
     }
+
     // =====================================================
     // 🟩 ADMIN: NUEVO PEDIDO
     // =====================================================
@@ -314,7 +319,6 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // ✅ GUARDAMOS EL PEDIDO PARA EL SIGUIENTE PASO
       adminState[from] = {
         step: "confirmar_cancelacion",
         pedido: validacion.pedido,
@@ -374,6 +378,14 @@ export const handleMessage = async (req, res) => {
                 "Si tienes alguna duda o deseas retomarlo, escríbenos y con gusto te ayudamos 🤝",
             },
           });
+
+          // 🏷️ SINCRONIZAR CHATWOOT
+          try {
+            await sincronizarEtiquetasCliente(result.numero_whatsapp);
+            await actualizarAtributosCliente(result.numero_whatsapp);
+          } catch (err) {
+            console.error("⚠️ Error sincronizando Chatwoot:", err.message);
+          }
         }
 
         delete adminState[from];
@@ -390,9 +402,8 @@ export const handleMessage = async (req, res) => {
     }
 
     // =====================================================
-    // 🟩 ADMIN: CAMBIO DE ESTADO MANUAL (COMPLETO)
+    // 🟩 ADMIN: CAMBIO DE ESTADO MANUAL
     // =====================================================
-
     const comandosEstado = {
       "/listo": "LISTO",
       "/entregado": "ENTREGADO",
@@ -461,6 +472,14 @@ export const handleMessage = async (req, res) => {
       // 📩 NOTIFICAR CLIENTE
       await notificarCambioEstado(pedido, enviar);
 
+      // 🏷️ SINCRONIZAR CHATWOOT
+      try {
+        await sincronizarEtiquetasCliente(pedido.numero_whatsapp);
+        await actualizarAtributosCliente(pedido.numero_whatsapp);
+      } catch (err) {
+        console.error("⚠️ Error sincronizando Chatwoot:", err.message);
+      }
+
       delete adminState[from];
 
       // ✅ CONFIRMACIÓN ADMIN
@@ -479,7 +498,6 @@ export const handleMessage = async (req, res) => {
     // =====================================================
     // 🟩 ADMIN: ANTICIPO
     // =====================================================
-
     if (esAdmin && inputLower === "/abono") {
       adminState[from] = { step: "anticipo_codigo" };
 
@@ -515,7 +533,6 @@ export const handleMessage = async (req, res) => {
 
       const pedido = validacion.pedido;
 
-      // ✅ VALIDACIÓN CLAVE: ya está pagado
       if (Number(pedido.saldo_pendiente) <= 0) {
         await enviar(from, {
           text: {
@@ -559,7 +576,6 @@ export const handleMessage = async (req, res) => {
 
       const result = await registrarAnticipo(adminState[from].orderCode, valor);
 
-      // ❌ Excede saldo
       if (result?.error === "EXCEDE_SALDO") {
         await enviar(from, {
           text: {
@@ -571,7 +587,6 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // ✅ Ya estaba pagado (corte total del flujo)
       if (result?.error === "PAGADO") {
         await enviar(from, {
           text: {
@@ -632,24 +647,29 @@ export const handleMessage = async (req, res) => {
         },
       });
 
+      // 🏷️ SINCRONIZAR CHATWOOT
+      try {
+        await sincronizarEtiquetasCliente(result.numero_whatsapp);
+        await actualizarAtributosCliente(result.numero_whatsapp);
+      } catch (err) {
+        console.error("⚠️ Error sincronizando Chatwoot:", err.message);
+      }
+
       return res.sendStatus(200);
     }
 
     // =====================================================
     // 🟦 CLIENTE: OPCIONES MENÚ
     // =====================================================
-    // ✋ Si el cliente vuelve a escribir, cancelamos mensaje pendiente
     if (global.cotizacionTimers?.[from]) {
       clearTimeout(global.cotizacionTimers[from]);
       delete global.cotizacionTimers[from];
     }
 
     if (input === "COTIZAR") {
-      // iniciamos estado de cotización para este cliente
       global.estadoCotizacion = global.estadoCotizacion || {};
       global.estadoCotizacion[from] = { step: "tipoTrabajo" };
 
-      // mensaje 1: aclaración
       await enviar(from, {
         text: {
           body:
@@ -661,7 +681,6 @@ export const handleMessage = async (req, res) => {
         },
       });
 
-      // mensaje 2: clasificación del trabajo
       await enviar(from, {
         text: {
           body:
@@ -682,7 +701,6 @@ export const handleMessage = async (req, res) => {
     if (global.estadoCotizacion?.[from]) {
       const estadoCot = global.estadoCotizacion[from];
 
-      // paso 1: tipo de trabajo
       if (estadoCot.step === "tipoTrabajo") {
         const textLower = inputLower;
 
@@ -734,12 +752,8 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // ✅ PASO FINAL DEL FLUJO
       if (estadoCot.step === "detalleTrabajo") {
-        // 🕒 programamos mensaje diferido
         programarMensajeAsesor(from);
-
-        // 🔚 cerramos flujo
         delete global.estadoCotizacion[from];
         return res.sendStatus(200);
       }
@@ -760,11 +774,9 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // 🟢 UN SOLO PEDIDO
       if (pedidos.length === 1) {
         const pedido = pedidos[0];
 
-        // ✅ PEDIDO YA ENTREGADO
         if (pedido.estado_pedido === "ENTREGADO") {
           await enviar(from, {
             text: {
@@ -776,12 +788,10 @@ export const handleMessage = async (req, res) => {
           return res.sendStatus(200);
         }
 
-        // 📦 Pedido activo normal
         await enviar(from, estadoPedidoTemplate(pedido));
         return res.sendStatus(200);
       }
 
-      // 🟢 VARIOS PEDIDOS → selector
       await enviar(from, seleccionarPedidoEstado(pedidos));
       return res.sendStatus(200);
     }
@@ -801,7 +811,6 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // 🟢 UN SOLO PEDIDO
       if (pedidos.length === 1) {
         const pedido = pedidos[0];
 
@@ -820,7 +829,6 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // 🟢 VARIOS PEDIDOS
       await enviar(from, seleccionarPedidoSaldo(pedidos));
       return res.sendStatus(200);
     }
@@ -944,7 +952,6 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // ✅ PEDIDO YA ENTREGADO
       if (pedido.estado_pedido === "ENTREGADO") {
         await enviar(from, {
           text: {
@@ -956,7 +963,6 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // 📦 Pedido activo normal
       await enviar(from, estadoPedidoTemplate(pedido));
       return res.sendStatus(200);
     }

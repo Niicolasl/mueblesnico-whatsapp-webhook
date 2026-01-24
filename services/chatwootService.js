@@ -1,8 +1,9 @@
 import axios from "axios";
 import FormData from 'form-data';
 import 'dotenv/config';
+import pool from "../db/connection.js";
 
-const CHATWOOT_BASE = process.env.CHATWOOT_BASE; // https://app.chatwoot.com
+const CHATWOOT_BASE = process.env.CHATWOOT_BASE;
 const CHATWOOT_TOKEN = process.env.CHATWOOT_API_TOKEN;
 const ACCOUNT_ID = process.env.CHATWOOT_ACCOUNT_ID;
 const INBOX_ID = Number(process.env.CHATWOOT_INBOX_ID);
@@ -11,6 +12,18 @@ const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const headers = {
     api_access_token: CHATWOOT_TOKEN,
     "Content-Type": "application/json",
+};
+
+// ===============================
+// 🏷️ MAPEO DE IDs DE ETIQUETAS
+// ===============================
+const LABEL_IDS = {
+    pendiente_anticipo: 25212,
+    en_fabricacion: 25213,
+    listo: 25214,
+    entregado: 25215,
+    pago_pendiente: 25216,
+    pagado: 25218
 };
 
 export const lastSentMessages = new Set();
@@ -67,10 +80,9 @@ async function getOrCreateContact(e164, name) {
 }
 
 // ===============================
-// 💬 CONVERSACIONES (FIXED)
+// 💬 CONVERSACIONES
 // ===============================
 async function getOrCreateConversation(e164, contactId) {
-    // 1. Verificar caché
     if (conversationCache.has(e164)) {
         const cachedId = conversationCache.get(e164);
         console.log(`🔄 Usando conversación en caché: ${cachedId} para ${e164}`);
@@ -78,7 +90,6 @@ async function getOrCreateConversation(e164, contactId) {
     }
 
     try {
-        // 2. Buscar conversaciones del contacto (método correcto)
         console.log(`🔍 Buscando conversaciones del contacto ${contactId}...`);
         const res = await axios.get(
             `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contactId}/conversations`,
@@ -88,7 +99,6 @@ async function getOrCreateConversation(e164, contactId) {
         const conversations = res.data?.payload || [];
         console.log(`📋 Encontradas ${conversations.length} conversaciones para contacto ${contactId}`);
 
-        // 3. Buscar conversación abierta en el inbox correcto
         const existingConvo = conversations.find(c => {
             const isCorrectInbox = Number(c.inbox_id) === INBOX_ID;
             const isOpen = c.status !== 'resolved';
@@ -106,7 +116,6 @@ async function getOrCreateConversation(e164, contactId) {
             return existingConvo.id;
         }
 
-        // 4. Si no existe, crear nueva
         console.log(`✨ No hay conversación abierta. Creando nueva...`);
         const convo = await axios.post(
             `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`,
@@ -126,14 +135,267 @@ async function getOrCreateConversation(e164, contactId) {
 
     } catch (error) {
         console.error("❌ Error getOrCreateConversation:", error.response?.data || error.message);
-        console.error("   Stack:", error.stack);
         return null;
     }
 }
 
-/**
- * 📥 WhatsApp → Chatwoot (mensaje del cliente)
- */
+// ===============================
+// 🗄️ CONSULTAS DE BASE DE DATOS
+// ===============================
+
+async function getPedidosActivosByPhone(phone) {
+    const result = await pool.query(
+        `SELECT * FROM orders 
+         WHERE numero_whatsapp = $1 
+         AND cancelado = false 
+         AND estado_pedido != 'entregado'
+         ORDER BY fecha_creacion DESC`,
+        [phone]
+    );
+    return result.rows;
+}
+
+async function getPedidosConDeuda(phone) {
+    const result = await pool.query(
+        `SELECT order_code, descripcion_trabajo, saldo_pendiente, estado_pedido
+         FROM orders 
+         WHERE numero_whatsapp = $1 
+         AND cancelado = false
+         AND saldo_pendiente > 0
+         ORDER BY fecha_creacion DESC`,
+        [phone]
+    );
+    return result.rows;
+}
+
+async function getTotalGastadoHistorico(phone) {
+    const result = await pool.query(
+        `SELECT 
+            COUNT(*) as total_pedidos,
+            COALESCE(SUM(valor_total), 0) as total_gastado,
+            MIN(fecha_creacion) as cliente_desde
+         FROM orders 
+         WHERE numero_whatsapp = $1`,
+        [phone]
+    );
+    return result.rows[0];
+}
+
+// ===============================
+// 🏷️ GESTIÓN DE ETIQUETAS
+// ===============================
+
+export async function sincronizarEtiquetasCliente(phone) {
+    try {
+        console.log(`🏷️ Sincronizando etiquetas para ${phone}...`);
+
+        const pedidosActivos = await getPedidosActivosByPhone(phone);
+        const pedidosConDeuda = await getPedidosConDeuda(phone);
+
+        const etiquetas = [];
+
+        // ========================================
+        // ETIQUETAS DE PRODUCCIÓN (pedidos activos)
+        // ========================================
+        if (pedidosActivos.length > 0) {
+            const tienePendienteAnticipo = pedidosActivos.some(p =>
+                p.estado_pedido === "pendiente de anticipo"
+            );
+
+            const tieneEnFabricacion = pedidosActivos.some(p =>
+                p.estado_pedido === "en_fabricacion" ||
+                p.estado_pedido === "pendiente de inicio"
+            );
+
+            const tieneListo = pedidosActivos.some(p =>
+                p.estado_pedido === "LISTO"
+            );
+
+            if (tienePendienteAnticipo) etiquetas.push("pendiente_anticipo");
+            if (tieneEnFabricacion) etiquetas.push("en_fabricacion");
+            if (tieneListo) etiquetas.push("listo");
+        }
+
+        // ========================================
+        // ETIQUETAS DE PAGO
+        // ========================================
+        if (pedidosConDeuda.length > 0) {
+            etiquetas.push("pago_pendiente");
+        } else if (pedidosActivos.length > 0) {
+            // Solo si tiene pedidos activos y todos pagados
+            etiquetas.push("pagado");
+        }
+
+        // ========================================
+        // ETIQUETA DE ENTREGA
+        // ========================================
+        if (pedidosActivos.length === 0 && pedidosConDeuda.length > 0) {
+            // Todo entregado pero con deuda
+            etiquetas.push("entregado");
+        }
+
+        // ========================================
+        // CASO: Todo entregado y pagado → SIN ETIQUETAS (limpio)
+        // ========================================
+        // Si pedidosActivos.length === 0 && pedidosConDeuda.length === 0
+        // → etiquetas queda como [] automáticamente
+
+        await reemplazarEtiquetas(phone, etiquetas);
+        console.log(`✅ Etiquetas sincronizadas: [${etiquetas.join(", ")}]`);
+
+    } catch (err) {
+        console.error(`⚠️ Error sincronizando etiquetas:`, err.message);
+    }
+}
+
+async function reemplazarEtiquetas(phone, labelNames) {
+    try {
+        const e164 = toE164(phone);
+        const contactId = await getOrCreateContact(e164, e164);
+        const conversationId = await getOrCreateConversation(e164, contactId);
+
+        if (!conversationId) return;
+
+        // Convertir nombres a IDs
+        const labelIds = labelNames
+            .map(name => LABEL_IDS[name])
+            .filter(id => id !== undefined);
+
+        // Reemplazar todas las etiquetas
+        await axios.post(
+            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`,
+            { labels: labelIds },
+            { headers }
+        );
+
+        console.log(`🏷️ Etiquetas actualizadas en conversación ${conversationId}`);
+    } catch (err) {
+        console.error(`⚠️ Error reemplazando etiquetas:`, err.message);
+    }
+}
+
+// ===============================
+// 📊 GESTIÓN DE ATRIBUTOS
+// ===============================
+
+export async function actualizarAtributosCliente(phone) {
+    try {
+        console.log(`📊 Actualizando atributos para ${phone}...`);
+
+        const pedidosActivos = await getPedidosActivosByPhone(phone);
+        const pedidosConDeuda = await getPedidosConDeuda(phone);
+        const historico = await getTotalGastadoHistorico(phone);
+
+        // ========================================
+        // ATRIBUTOS DE CONTACTO (histórico + deudas)
+        // ========================================
+        const deudaTotal = pedidosConDeuda.reduce(
+            (sum, p) => sum + Number(p.saldo_pendiente),
+            0
+        );
+
+        const deudaDetalle = pedidosConDeuda.length > 0
+            ? pedidosConDeuda.map(p =>
+                `• ${p.order_code}: ${p.descripcion_trabajo}\n  Saldo: $${Number(p.saldo_pendiente).toLocaleString()}`
+            ).join('\n\n')
+            : "Ninguno";
+
+        const atributosContacto = {
+            total_pedidos_historico: String(historico.total_pedidos || 0),
+            total_gastado_historico: String(historico.total_gastado || 0),
+            cliente_desde: historico.cliente_desde?.toISOString().split('T')[0] || "",
+            deuda_total: String(deudaTotal),
+            cantidad_pedidos_con_deuda: String(pedidosConDeuda.length),
+            pedidos_con_deuda_detalle: deudaDetalle
+        };
+
+        await actualizarAtributosContacto(phone, atributosContacto);
+
+        // ========================================
+        // ATRIBUTOS DE CONVERSACIÓN (pedidos activos)
+        // ========================================
+        if (pedidosActivos.length > 0) {
+            const saldoTotalActivos = pedidosActivos.reduce(
+                (sum, p) => sum + Number(p.saldo_pendiente),
+                0
+            );
+
+            const ultimoPedido = pedidosActivos[0];
+
+            const atributosConversacion = {
+                pedidos_activos: pedidosActivos.map(p => p.order_code).join(", "),
+                total_pedidos_activos: String(pedidosActivos.length),
+                saldo_total_activos: String(saldoTotalActivos),
+                ultimo_pedido: ultimoPedido.order_code,
+                ultimo_trabajo: ultimoPedido.descripcion_trabajo,
+                ultimo_estado: ultimoPedido.estado_pedido,
+                ultimo_saldo: String(ultimoPedido.saldo_pendiente),
+                ultima_actualizacion: new Date().toISOString()
+            };
+
+            await actualizarAtributosConversacion(phone, atributosConversacion);
+        } else {
+            // Limpiar atributos de conversación si no hay pedidos activos
+            await actualizarAtributosConversacion(phone, {
+                pedidos_activos: "Ninguno",
+                total_pedidos_activos: "0",
+                saldo_total_activos: "0",
+                ultimo_pedido: "",
+                ultimo_trabajo: "",
+                ultimo_estado: "",
+                ultimo_saldo: "0",
+                ultima_actualizacion: new Date().toISOString()
+            });
+        }
+
+        console.log(`✅ Atributos actualizados correctamente`);
+
+    } catch (err) {
+        console.error(`⚠️ Error actualizando atributos:`, err.message);
+    }
+}
+
+async function actualizarAtributosContacto(phone, attributes) {
+    try {
+        const e164 = toE164(phone);
+        const contactId = await getOrCreateContact(e164, e164);
+
+        await axios.put(
+            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contactId}`,
+            { custom_attributes: attributes },
+            { headers }
+        );
+
+        console.log(`📋 Atributos de contacto actualizados`);
+    } catch (err) {
+        console.error(`⚠️ Error actualizando atributos de contacto:`, err.message);
+    }
+}
+
+async function actualizarAtributosConversacion(phone, attributes) {
+    try {
+        const e164 = toE164(phone);
+        const contactId = await getOrCreateContact(e164, e164);
+        const conversationId = await getOrCreateConversation(e164, contactId);
+
+        if (!conversationId) return;
+
+        await axios.post(
+            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/custom_attributes`,
+            { custom_attributes: attributes },
+            { headers }
+        );
+
+        console.log(`📋 Atributos de conversación actualizados`);
+    } catch (err) {
+        console.error(`⚠️ Error actualizando atributos de conversación:`, err.message);
+    }
+}
+
+// ===============================
+// 📥 FORWARD MENSAJES (SIN CAMBIOS)
+// ===============================
+
 export async function forwardToChatwoot(phone, name, messageObject) {
     try {
         console.log(`📥 forwardToChatwoot: ${phone} → "${messageObject.text?.body?.substring(0, 30) || messageObject.type}"`);
@@ -154,7 +416,6 @@ export async function forwardToChatwoot(phone, name, messageObject) {
         const type = messageObject.type;
         const supportedMedia = ["image", "audio", "document", "video"];
 
-        // --- 📂 MULTIMEDIA ---
         if (supportedMedia.includes(type)) {
             const mediaData = messageObject[type];
             const caption = mediaData.caption || "";
@@ -191,7 +452,6 @@ export async function forwardToChatwoot(phone, name, messageObject) {
             return;
         }
 
-        // --- 💬 TEXTO ---
         let content = messageObject.text?.body;
         if (!content && messageObject.interactive) {
             const reply = messageObject.interactive.button_reply || messageObject.interactive.list_reply;
@@ -208,13 +468,9 @@ export async function forwardToChatwoot(phone, name, messageObject) {
         }
     } catch (err) {
         console.error("❌ Error forwardToChatwoot:", err.response?.data || err.message);
-        console.error("   Stack:", err.stack);
     }
 }
 
-/**
- * 📤 Bot → Chatwoot (mensaje del bot)
- */
 export async function sendBotMessageToChatwoot(phone, text) {
     try {
         console.log(`📤 sendBotMessageToChatwoot: ${phone} → "${text.substring(0, 30)}"`);
@@ -239,6 +495,5 @@ export async function sendBotMessageToChatwoot(phone, text) {
         }
     } catch (err) {
         console.error("❌ Error sendBotMessageToChatwoot:", err.response?.data || err.message);
-        console.error("   Stack:", err.stack);
     }
 }
