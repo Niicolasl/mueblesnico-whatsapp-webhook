@@ -1,7 +1,7 @@
 import axios from "axios";
 import FormData from 'form-data';
 import 'dotenv/config';
-import { pool } from "./init.js";
+import { pool } from "../db/init.js";
 
 const CHATWOOT_BASE = process.env.CHATWOOT_BASE;
 const CHATWOOT_TOKEN = process.env.CHATWOOT_API_TOKEN;
