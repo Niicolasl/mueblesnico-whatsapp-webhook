@@ -18,12 +18,12 @@ const headers = {
 // 🏷️ MAPEO DE IDs DE ETIQUETAS
 // ===============================
 const LABEL_IDS = {
-    pendiente_anticipo: 25212,
-    en_fabricacion: 25213,
-    listo: 25214,
-    entregado: 25215,
-    pago_pendiente: 25216,
-    pagado: 25218
+    pendiente_anticipo: 6,
+    en_fabricacion: 1,
+    listo: 3,
+    entregado: 2,
+    pago_pendiente: 5,
+    pagado: 4
 };
 
 export const lastSentMessages = new Set();
