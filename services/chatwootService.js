@@ -256,12 +256,18 @@ async function reemplazarEtiquetas(phone, labelNames) {
 
         if (!conversationId) return;
 
-        // Convertir nombres a IDs
         const labelIds = labelNames
             .map(name => LABEL_IDS[name])
             .filter(id => id !== undefined);
 
-        // Reemplazar todas las etiquetas
+        // ⬇️ AGREGA ESTA LÍNEA TEMPORAL
+        console.log(`🔍 DEBUG - Asignando etiquetas:`, {
+            phone,
+            labelNames,
+            labelIds,
+            conversationId
+        });
+
         await axios.post(
             `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`,
             { labels: labelIds },
@@ -271,6 +277,7 @@ async function reemplazarEtiquetas(phone, labelNames) {
         console.log(`🏷️ Etiquetas actualizadas en conversación ${conversationId}`);
     } catch (err) {
         console.error(`⚠️ Error reemplazando etiquetas:`, err.message);
+        console.error(`⚠️ Error completo:`, err.response?.data || err); // ⬅️ AGREGA ESTA TAMBIÉN
     }
 }
 
