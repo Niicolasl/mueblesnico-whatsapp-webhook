@@ -256,16 +256,18 @@ async function reemplazarEtiquetas(phone, labelNames) {
 
         if (!conversationId) return;
 
+        // ✅ ASEGURAR QUE SON NÚMEROS, NO STRINGS
         const labelIds = labelNames
             .map(name => LABEL_IDS[name])
-            .filter(id => id !== undefined);
+            .filter(id => id !== undefined)
+            .map(id => Number(id));
 
-        // ⬇️ AGREGA ESTA LÍNEA TEMPORAL
         console.log(`🔍 DEBUG - Asignando etiquetas:`, {
             phone,
             labelNames,
             labelIds,
-            conversationId
+            conversationId,
+            tipoLabelIds: typeof labelIds[0] // ⬅️ Verificar que sea 'number'
         });
 
         await axios.post(
@@ -277,7 +279,7 @@ async function reemplazarEtiquetas(phone, labelNames) {
         console.log(`🏷️ Etiquetas actualizadas en conversación ${conversationId}`);
     } catch (err) {
         console.error(`⚠️ Error reemplazando etiquetas:`, err.message);
-        console.error(`⚠️ Error completo:`, err.response?.data || err); // ⬅️ AGREGA ESTA TAMBIÉN
+        console.error(`⚠️ Error completo:`, err.response?.data || err);
     }
 }
 
