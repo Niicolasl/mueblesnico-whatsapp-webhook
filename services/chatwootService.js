@@ -256,23 +256,16 @@ async function reemplazarEtiquetas(phone, labelNames) {
 
         if (!conversationId) return;
 
-        // ✅ ASEGURAR QUE SON NÚMEROS, NO STRINGS
-        const labelIds = labelNames
-            .map(name => LABEL_IDS[name])
-            .filter(id => id !== undefined)
-            .map(id => Number(id));
-
+        // ✅ ENVIAR NOMBRES, NO IDs
         console.log(`🔍 DEBUG - Asignando etiquetas:`, {
             phone,
             labelNames,
-            labelIds,
-            conversationId,
-            tipoLabelIds: typeof labelIds[0] // ⬅️ Verificar que sea 'number'
+            conversationId
         });
 
         await axios.post(
             `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`,
-            { labels: labelIds },
+            { labels: labelNames }, // ⬅️ CAMBIO AQUÍ: labelNames en lugar de labelIds
             { headers }
         );
 
