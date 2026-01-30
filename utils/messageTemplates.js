@@ -83,6 +83,30 @@ export const seleccionarPedidoSaldo = (orders) => ({
 });
 
 /* =====================================================
+   💰 SALDO NO ENCONTRADO
+===================================================== */
+export const saldoNoEncontrado = () => ({
+  text: {
+    body:
+      "❌ No encontré ningún pedido con ese dato.\n\n" +
+      "Verifica que el código o número sea correcto e intenta nuevamente."
+  }
+});
+
+/* =====================================================
+   💰 PEDIR DATO PARA CONSULTAR SALDO
+===================================================== */
+export const pedirDatoSaldo = () => ({
+  text: {
+    body:
+      "💳 *Consultar saldo*\n\n" +
+      "Envíame uno de estos datos:\n" +
+      "• Código del pedido (ej: MN-2026-0001)\n" +
+      "• Tu número de WhatsApp (10 dígitos)"
+  }
+});
+
+/* =====================================================
    📦 LISTA PEDIDOS (ESTADO)
 ===================================================== */
 export const seleccionarPedidoEstado = (pedidos) => ({
