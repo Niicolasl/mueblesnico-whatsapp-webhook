@@ -1,4 +1,5 @@
 import { formatearFecha } from "./date.js";
+import { formatOrderInline, formatOrderHeader } from "./orderFormatter.js";
 
 /* =====================================================
    🟦 MENÚ PRINCIPAL
@@ -29,30 +30,6 @@ export const menuPrincipal = () => ({
   }
 });
 
-/* =====================================================
-   📭 SIN PEDIDOS / SALDO NO ENCONTRADO
-===================================================== */
-export const saldoNoEncontrado = () => ({
-  text: {
-    body:
-      "No encontré pedidos activos asociados a este número 😕\n\n" +
-      "Si quieres, escribe *Menu* y miramos qué más puedo ayudarte."
-  }
-});
-
-/* =====================================================
-   💰 PEDIR DATO SALDO
-===================================================== */
-export const pedirDatoSaldo = () => ({
-  text: {
-    body:
-      "Perfecto 😊 te ayudo con eso.\n\n" +
-      "Envíame uno de estos datos:\n" +
-      "• El *código del pedido* (ej: MN-2025-0001)\n" +
-      "• O tu *número de WhatsApp*\n\n" +
-      "Con eso reviso tu saldo enseguida 👍"
-  }
-});
 
 /* =====================================================
    💰 SALDO – UN PEDIDO
@@ -63,11 +40,11 @@ export const saldoUnPedido = (order) => ({
     body: {
       text:
         `Aquí te dejo el estado de tu saldo 💳\n\n` +
-        `🆔 *Pedido:* ${order.codigo}\n` +
+        `📦 *Pedido:* ${order.codigo}\n` +
         `🛠️ *Trabajo:* ${order.descripcion}\n` +
-        `💵 *Total:* $${Number(order.total).toLocaleString()}\n` +
-        `💳 *Abonado:* $${Number(order.anticipo).toLocaleString()}\n` +
-        `🔻 *Saldo pendiente:* $${Number(order.saldo).toLocaleString()}`
+        `💰 *Valor total:* $${Number(order.total).toLocaleString()}\n\n` +
+        `💳 Abonado: $${Number(order.anticipo).toLocaleString()}\n` +
+        `🔻 Saldo pendiente: $${Number(order.saldo).toLocaleString()}`
     },
     action: {
       buttons: [
@@ -97,7 +74,7 @@ export const seleccionarPedidoSaldo = (orders) => ({
           rows: orders.map(o => ({
             id: `SALDO_${o.id}`,
             title: o.codigo,
-            description: `Saldo pendiente: $${Number(o.saldo).toLocaleString()}`
+            description: `${o.descripcion} - Saldo: $${Number(o.saldo).toLocaleString()}`
           }))
         }
       ]
@@ -124,7 +101,7 @@ export const seleccionarPedidoEstado = (pedidos) => ({
           rows: pedidos.map(p => ({
             id: `PEDIDO_${p.id}`,
             title: p.order_code,
-            description: estadoPedidoCorto(p.estado_pedido)
+            description: `${p.descripcion_trabajo} - ${estadoPedidoCorto(p.estado_pedido)}`
           }))
         }
       ]
@@ -139,13 +116,14 @@ export const estadoPedidoTemplate = (pedido) => ({
   text: {
     body:
       `Así va tu pedido 😊\n\n` +
-      `🆔 *Pedido:* ${pedido.order_code}\n` +
+      `📦 *Pedido:* ${pedido.order_code}\n` +
+      `🛠️ *Trabajo:* ${pedido.descripcion_trabajo}\n` +
       `📌 *Estado:* ${textoEstadoPedido(pedido.estado_pedido)}\n` +
       `📅 *Entrega estimada:* ${pedido.fecha_aprox_entrega
         ? formatearFecha(pedido.fecha_aprox_entrega)
         : "Por definir"
       }\n\n` +
-      `Si necesitas algo más, escribe *Menu*.`
+      `Puedes escribir *menú* para ver el estado y saldo de tus pedidos`
   }
 });
 

@@ -161,21 +161,22 @@ export async function handleNewOrderStep(admin, message) {
                     }
                 });
 
-                // 📲 NOTIFICACIÓN AL CLIENTE
+                // 📲 NOTIFICACIÓN AL CLIENTE (FORMATO COMPLETO)
                 await sendMessage(order.numero_whatsapp, {
                     messaging_product: "whatsapp",
                     text: {
                         body:
                             "📝 *Pedido registrado*\n\n" +
-                            `Código: *${order.order_code}*\n` +
-                            `Trabajo: ${order.descripcion_trabajo}\n` +
-                            `Valor total: $${Number(order.valor_total).toLocaleString()}\n\n` +
+                            `📦 Código: *${order.order_code}*\n` +
+                            `🛠️ Trabajo: ${order.descripcion_trabajo}\n` +
+                            `💰 Valor total: $${Number(order.valor_total).toLocaleString()}\n\n` +
                             "📌 Estado actual: *Pendiente de anticipo*\n" +
-                            "Te avisaremos cuando haya novedades 🙌"
+                            "Te avisaremos cuando haya novedades 🙌\n\n" +
+                            "Puedes escribir *menú* para ver el estado y saldo de tus pedidos"
                     }
                 });
 
-                // 🏷️ SINCRONIZAR CHATWOOT (NUEVO)
+                // 🏷️ SINCRONIZAR CHATWOOT
                 try {
                     await sincronizarEtiquetasCliente(order.numero_whatsapp);
                     await actualizarAtributosCliente(order.numero_whatsapp);

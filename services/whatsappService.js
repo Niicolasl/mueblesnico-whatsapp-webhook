@@ -17,7 +17,7 @@ global.cotizacionTimers = global.cotizacionTimers || {};
 global.estadoCotizacion = global.estadoCotizacion || {};
 global.estadoCliente = global.estadoCliente || {};
 
-import { consultarPedido } from "./orderService.js";
+import { formatOrderInline, formatOrderHeader } from "../utils/orderFormatter.js";
 import { consultarSaldo } from "../db/consultarSaldo.js";
 import { registrarAnticipo } from "../db/anticipo.js";
 import { cancelarPedido } from "../db/cancelarPedido.js";
@@ -105,14 +105,17 @@ async function notificarCambioEstado(pedido, enviar) {
   if (estado === "LISTO") {
     mensaje =
       `Hola, ${saludoHora} 😊\n\n` +
-      `Tu pedido *${pedido.order_code}* ya está listo 🎉\n` +
+      `Tu pedido ya está listo 🎉\n\n` +
+      `📦 Pedido: ${pedido.order_code}\n` +
+      `🛠️ Trabajo: ${pedido.descripcion_trabajo}\n\n` +
       `Cuando quieras, escríbeme y coordinamos la entrega.`;
   }
 
   if (estado === "ENTREGADO") {
     mensaje =
       `Hola 🙌\n\n` +
-      `Quería avisarte que tu pedido *${pedido.order_code}* ya fue entregado con éxito ✅\n\n` +
+      `Tu pedido fue entregado con éxito ✅\n\n` +
+      `📦 ${formatOrderInline(pedido.order_code, pedido.descripcion_trabajo)}\n\n` +
       `Gracias por confiar en nosotros.\n` +
       `Si necesitas algo más, aquí estamos 😊`;
   }
@@ -330,8 +333,8 @@ export const handleMessage = async (req, res) => {
         text: {
           body:
             "⚠️ *Confirma la cancelación*\n\n" +
-            `Pedido: *${pedido.order_code}*\n` +
-            `Trabajo: ${pedido.descripcion_trabajo}\n\n` +
+            `📦 Pedido: ${pedido.order_code}\n` +
+            `🛠️ Trabajo: ${pedido.descripcion_trabajo}\n\n` +
             "Escribe *SI* para confirmar o *NO* para cancelar la acción.",
         },
       });
@@ -358,8 +361,8 @@ export const handleMessage = async (req, res) => {
           text: {
             body:
               "❌ *Pedido cancelado correctamente*\n\n" +
-              `Pedido: ${pedido.order_code}\n` +
-              `Trabajo: ${pedido.descripcion_trabajo}`,
+              `📦 Pedido: ${pedido.order_code}\n` +
+              `🛠️ Trabajo: ${pedido.descripcion_trabajo}`,
           },
         });
 
@@ -370,11 +373,9 @@ export const handleMessage = async (req, res) => {
             text: {
               body:
                 `Hola, ${saludoHora} 😊\n\n` +
-                `Queremos informarte que tu pedido *${result.order_code}* ` +
-                "ha sido cancelado.\n\n" +
-                (result.descripcion_trabajo
-                  ? `🛠️ Trabajo: ${result.descripcion_trabajo}\n\n`
-                  : "") +
+                `Queremos informarte que tu pedido ha sido cancelado.\n\n` +
+                `📦 Pedido: ${result.order_code}\n` +
+                `🛠️ Trabajo: ${result.descripcion_trabajo}\n\n` +
                 "Si tienes alguna duda o deseas retomarlo, escríbenos y con gusto te ayudamos 🤝",
             },
           });
@@ -487,8 +488,9 @@ export const handleMessage = async (req, res) => {
         text: {
           body:
             `✅ *Estado actualizado*\n\n` +
-            `Pedido: ${pedido.order_code}\n` +
-            `Nuevo estado: ${nuevoEstado.replace("_", " ")}`,
+            `📦 Pedido: ${pedido.order_code}\n` +
+            `🛠️ Trabajo: ${pedido.descripcion_trabajo}\n` +
+            `📌 Nuevo estado: ${nuevoEstado.replace("_", " ")}`,
         },
       });
 
@@ -496,7 +498,7 @@ export const handleMessage = async (req, res) => {
     }
 
     // =====================================================
-    // 🟩 ADMIN: ANTICIPO
+    // 🟩 ADMIN: ANTICIPO CON CONFIRMACIÓN
     // =====================================================
     if (esAdmin && inputLower === "/abono") {
       adminState[from] = { step: "anticipo_codigo" };
@@ -546,15 +548,14 @@ export const handleMessage = async (req, res) => {
       }
 
       adminState[from].orderCode = codigo;
+      adminState[from].pedido = pedido;
       adminState[from].step = "anticipo_valor";
 
       await enviar(from, {
         text: {
           body:
-            `💵 Ingresa el *valor abonado*\n` +
-            `Saldo pendiente: $${Number(
-              pedido.saldo_pendiente
-            ).toLocaleString()}`,
+            `💵 Ingresa el *valor abonado*\n\n` +
+            `Saldo pendiente: $${Number(pedido.saldo_pendiente).toLocaleString()}`,
         },
       });
 
@@ -574,7 +575,54 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      const result = await registrarAnticipo(adminState[from].orderCode, valor);
+      const pedido = adminState[from].pedido;
+      const nuevoSaldo = Number(pedido.saldo_pendiente) - valor;
+
+      if (nuevoSaldo < 0) {
+        await enviar(from, {
+          text: {
+            body:
+              `❌ El valor ingresado excede el saldo pendiente.\n\n` +
+              `Saldo actual: $${Number(pedido.saldo_pendiente).toLocaleString()}`,
+          },
+        });
+        return res.sendStatus(200);
+      }
+
+      adminState[from].valor = valor;
+      adminState[from].step = "confirmar_abono";
+
+      await enviar(from, {
+        text: {
+          body:
+            "⚠️ *Confirma el abono*\n\n" +
+            `📦 Pedido: ${pedido.order_code}\n` +
+            `🛠️ Trabajo: ${pedido.descripcion_trabajo}\n` +
+            `💰 Valor a abonar: $${valor.toLocaleString()}\n` +
+            `📊 Nuevo saldo: $${nuevoSaldo.toLocaleString()}\n\n` +
+            "Escribe *SI* para confirmar\n" +
+            "Escribe *NO* para cancelar"
+        }
+      });
+
+      return res.sendStatus(200);
+    }
+
+    if (esAdmin && adminState[from]?.step === "confirmar_abono") {
+      const respuesta = inputLower;
+
+      if (respuesta !== "si") {
+        await enviar(from, {
+          text: { body: "❎ Registro de abono cancelado." }
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
+
+      const result = await registrarAnticipo(
+        adminState[from].orderCode,
+        adminState[from].valor
+      );
 
       if (result?.error === "EXCEDE_SALDO") {
         await enviar(from, {
@@ -584,6 +632,7 @@ export const handleMessage = async (req, res) => {
               `Saldo actual: $${Number(result.saldo).toLocaleString()}`,
           },
         });
+        delete adminState[from];
         return res.sendStatus(200);
       }
 
@@ -607,6 +656,7 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
+      const valor = adminState[from].valor;
       delete adminState[from];
 
       // ✅ Mensaje al ADMIN
@@ -614,31 +664,31 @@ export const handleMessage = async (req, res) => {
         text: {
           body:
             `✅ *Anticipo registrado*\n\n` +
-            `Pedido: ${result.order_code}\n` +
-            `Abonado total: $${Number(
-              result.valor_abonado
-            ).toLocaleString()}\n` +
-            `Saldo pendiente: $${Number(
-              result.saldo_pendiente
-            ).toLocaleString()}`,
+            `📦 Pedido: ${result.order_code}\n` +
+            `🛠️ Trabajo: ${result.descripcion_trabajo}\n\n` +
+            `Abonado total: $${Number(result.valor_abonado).toLocaleString()}\n` +
+            `Saldo pendiente: $${Number(result.saldo_pendiente).toLocaleString()}`,
         },
       });
 
       // ✅ Mensaje al CLIENTE
-      let mensajeCliente =
-        `💳 *Hemos recibido tu abono*\n\n` +
-        `Pedido: ${result.order_code}\n` +
-        `Abono recibido: $${valor.toLocaleString()}\n` +
-        `Saldo pendiente: $${Number(
-          result.saldo_pendiente
-        ).toLocaleString()}\n\n` +
-        `Gracias por tu pago 🙌`;
+      let mensajeCliente;
 
       if (Number(result.saldo_pendiente) <= 0) {
         mensajeCliente =
           `🎉 *¡Pago completado!*\n\n` +
-          `Tu pedido *${result.order_code}* ya se encuentra completamente pagado.\n` +
+          `Tu pedido ya está completamente pagado:\n` +
+          `📦 ${formatOrderInline(result.order_code, result.descripcion_trabajo)}\n\n` +
           `¡Gracias por confiar en Muebles Nico!`;
+      } else {
+        mensajeCliente =
+          `💳 *Hemos recibido tu abono*\n\n` +
+          formatOrderHeader(result.order_code, result.descripcion_trabajo, result.valor_total) +
+          `\n\n` +
+          `Abono recibido: $${valor.toLocaleString()}\n` +
+          `Saldo pendiente: $${Number(result.saldo_pendiente).toLocaleString()}\n\n` +
+          `Gracias por tu pago 🙌\n\n` +
+          `Puedes escribir *menú* para ver el estado y saldo de tus pedidos`;
       }
 
       await enviar(result.numero_whatsapp, {
