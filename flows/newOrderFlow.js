@@ -171,9 +171,13 @@ export async function handleNewOrderStep(admin, message) {
                             `🛠️ Trabajo: ${order.descripcion_trabajo}\n` +
                             `💰 Valor total: $${Number(order.valor_total).toLocaleString()}\n\n` +
                             "📌 Estado actual: *Pendiente de anticipo*\n" +
-                            "Te avisaremos cuando haya novedades 🙌\n\n" +
-                            "Puedes escribir *menú* para ver el estado y saldo de tus pedidos"
+                            "Te avisaremos cuando haya novedades 🙌"
                     }
+                });
+                await enviar(result.numero_whatsapp, {
+                    text: {
+                        body: `Puedes escribir *menú* para ver el estado y saldo de tus pedidos`,
+                    },
                 });
 
                 // 🏷️ SINCRONIZAR CHATWOOT
