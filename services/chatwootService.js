@@ -80,7 +80,7 @@ async function getOrCreateContact(e164, name) {
 }
 
 // ===============================
-// 💬 CONVERSACIONES
+// 💬 CONVERSACIONES (CON AUTO-ASIGNACIÓN)
 // ===============================
 async function getOrCreateConversation(e164, contactId) {
     if (conversationCache.has(e164)) {
@@ -113,6 +113,12 @@ async function getOrCreateConversation(e164, contactId) {
         if (existingConvo) {
             conversationCache.set(e164, existingConvo.id);
             console.log(`✅ Conversación encontrada y cacheada: ${existingConvo.id}`);
+
+            // 🔥 AUTO-ASIGNAR SI NO TIENE AGENTE
+            if (!existingConvo.assignee_id) {
+                await asignarAgente(existingConvo.id, 1); // Cambia "1" por el ID del agente que quieras
+            }
+
             return existingConvo.id;
         }
 
@@ -123,14 +129,15 @@ async function getOrCreateConversation(e164, contactId) {
                 source_id: e164,
                 inbox_id: INBOX_ID,
                 contact_id: contactId,
-                status: "open"
+                status: "open",
+                assignee_id: 1  // 🔥 AUTO-ASIGNAR AL CREAR (Cambia "1" por el ID que quieras)
             },
             { headers }
         );
 
         const convoId = convo.data?.id;
         conversationCache.set(e164, convoId);
-        console.log(`✅ Conversación creada y cacheada: ${convoId}`);
+        console.log(`✅ Conversación creada, cacheada y asignada al agente 1: ${convoId}`);
         return convoId;
 
     } catch (error) {
@@ -139,6 +146,19 @@ async function getOrCreateConversation(e164, contactId) {
     }
 }
 
+// 🔥 FUNCIÓN AUXILIAR PARA ASIGNAR AGENTE
+async function asignarAgente(conversationId, agentId) {
+    try {
+        await axios.post(
+            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/assignments`,
+            { assignee_id: agentId },
+            { headers }
+        );
+        console.log(`👤 Agente ${agentId} asignado a conversación ${conversationId}`);
+    } catch (err) {
+        console.error(`⚠️ Error asignando agente:`, err.response?.data || err.message);
+    }
+}
 // ===============================
 // 🗄️ CONSULTAS DE BASE DE DATOS
 // ===============================
