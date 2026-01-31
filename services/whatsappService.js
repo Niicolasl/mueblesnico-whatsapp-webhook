@@ -116,8 +116,10 @@ async function notificarCambioEstado(pedido, enviar) {
       `Hola 🙌\n\n` +
       `Tu pedido fue entregado con éxito ✅\n\n` +
       `📦 ${formatOrderInline(pedido.order_code, pedido.descripcion_trabajo)}\n\n` +
-      `Gracias por confiar en nosotros.\n` +
-      `Si necesitas algo más, aquí estamos 😊`;
+      `Gracias por confiar en *Muebles Nico* 🙏\n\n` +
+      `¿Qué te pareció tu experiencia con nosotros?\n` +
+      `Si quieres compartir tu opinión, escríbenos. ` +
+      `Nos ayuda mucho a mejorar 😊`;
   }
 
   if (!mensaje) return;

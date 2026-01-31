@@ -282,23 +282,48 @@ async function reemplazarEtiquetas(phone, labelNames) {
 
         if (!conversationId) return;
 
-        // ✅ ENVIAR NOMBRES, NO IDs
-        console.log(`🔍 DEBUG - Asignando etiquetas:`, {
+        console.log(`🔍 Sincronizando etiquetas:`, {
             phone,
-            labelNames,
+            nuevas: labelNames,
             conversationId
         });
 
-        await axios.post(
-            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`,
-            { labels: labelNames }, // ⬅️ CAMBIO AQUÍ: labelNames en lugar de labelIds
+        // 🔥 PASO 1: OBTENER ETIQUETAS ACTUALES
+        const convoData = await axios.get(
+            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}`,
             { headers }
         );
 
-        console.log(`🏷️ Etiquetas actualizadas en conversación ${conversationId}`);
+        const etiquetasActuales = convoData.data?.labels || [];
+        console.log(`📋 Etiquetas actuales: [${etiquetasActuales.join(", ") || "ninguna"}]`);
+
+        // 🔥 PASO 2: ELIMINAR TODAS LAS ETIQUETAS DE UNA VEZ
+        if (etiquetasActuales.length > 0) {
+            await axios.delete(
+                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`,
+                {
+                    headers,
+                    data: { labels: etiquetasActuales }
+                }
+            );
+            console.log(`🗑️ ${etiquetasActuales.length} etiqueta(s) eliminada(s)`);
+        }
+
+        // 🔥 PASO 3: AGREGAR NUEVAS ETIQUETAS (si hay)
+        if (labelNames.length > 0) {
+            await axios.post(
+                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`,
+                { labels: labelNames },
+                { headers }
+            );
+            console.log(`✅ Nuevas etiquetas: [${labelNames.join(", ")}]`);
+        } else {
+            console.log(`✨ Sin etiquetas (cliente completado)`);
+        }
+
     } catch (err) {
         console.error(`⚠️ Error reemplazando etiquetas:`, err.message);
-        console.error(`⚠️ Error completo:`, err.response?.data || err);
+        console.error(`⚠️ Detalles:`, err.response?.data || err);
     }
 }
 
