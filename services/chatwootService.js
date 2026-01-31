@@ -215,6 +215,17 @@ export async function sincronizarEtiquetasCliente(phone) {
         const etiquetas = [];
 
         // ========================================
+        // CASO 1: SIN PEDIDOS ACTIVOS Y SIN DEUDA
+        // → Cliente con todo entregado y pagado → SIN ETIQUETAS
+        // ========================================
+        if (pedidosActivos.length === 0 && pedidosConDeuda.length === 0) {
+            console.log(`✨ Cliente sin pedidos activos ni deudas → Sin etiquetas`);
+            await reemplazarEtiquetas(phone, []);
+            console.log(`✅ Etiquetas limpiadas (cliente con todo entregado y pagado)`);
+            return;
+        }
+
+        // ========================================
         // ETIQUETAS DE PRODUCCIÓN (pedidos activos)
         // ========================================
         if (pedidosActivos.length > 0) {
@@ -242,26 +253,21 @@ export async function sincronizarEtiquetasCliente(phone) {
         if (pedidosConDeuda.length > 0) {
             etiquetas.push("pago_pendiente");
         } else if (pedidosActivos.length > 0) {
-            // Solo si tiene pedidos activos y todos pagados
+            // Solo si tiene pedidos activos y todos están pagados
             etiquetas.push("pagado");
         }
 
         // ========================================
         // ETIQUETA DE ENTREGA
         // ========================================
+        // Si no tiene pedidos activos pero SÍ tiene deuda
+        // significa que todo está entregado pero debe dinero
         if (pedidosActivos.length === 0 && pedidosConDeuda.length > 0) {
-            // Todo entregado pero con deuda
             etiquetas.push("entregado");
         }
 
-        // ========================================
-        // CASO: Todo entregado y pagado → SIN ETIQUETAS (limpio)
-        // ========================================
-        // Si pedidosActivos.length === 0 && pedidosConDeuda.length === 0
-        // → etiquetas queda como [] automáticamente
-
         await reemplazarEtiquetas(phone, etiquetas);
-        console.log(`✅ Etiquetas sincronizadas: [${etiquetas.join(", ")}]`);
+        console.log(`✅ Etiquetas sincronizadas: [${etiquetas.join(", ") || "NINGUNA"}]`);
 
     } catch (err) {
         console.error(`⚠️ Error sincronizando etiquetas:`, err.message);
