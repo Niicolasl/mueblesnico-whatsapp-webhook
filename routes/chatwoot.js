@@ -39,7 +39,7 @@ router.post("/", async (req, res) => {
         }
 
         // =====================================================
-        // 📂 LÓGICA DE ENVÍO MULTIMEDIA (Actualizada)
+        // 📂 LÓGICA DE ENVÍO MULTIMEDIA (CON FILENAME CORRECTO)
         // =====================================================
 
         if (attachments && attachments.length > 0) {
@@ -51,17 +51,53 @@ router.post("/", async (req, res) => {
             if (file.file_type === "audio") type = "audio";
             if (file.file_type === "video") type = "video";
 
+            // 🔥 EXTRAER NOMBRE DEL ARCHIVO DESDE LA URL
+            let filename = "archivo"; // fallback
+
+            if (type === "document") {
+                // Opción 1: Chatwoot envía el nombre en data_url
+                // Ejemplo: https://chatwoot.com/rails/active_storage/.../Cotizacion.pdf
+                try {
+                    const urlParts = file.data_url.split('/');
+                    const lastPart = urlParts[urlParts.length - 1];
+
+                    // Decodificar por si tiene caracteres especiales (%20, etc.)
+                    const decodedName = decodeURIComponent(lastPart);
+
+                    // Remover query params si existen (ej: ?token=xxx)
+                    const cleanName = decodedName.split('?')[0];
+
+                    // Si tiene extensión válida, usar ese nombre
+                    if (/\.(pdf|docx?|xlsx?|txt|csv|zip|rar)$/i.test(cleanName)) {
+                        filename = cleanName;
+                    } else {
+                        // Si no tiene extensión, intentar extraerla del mime_type o data_url
+                        const extension = file.data_url.match(/\.(pdf|docx?|xlsx?|txt|csv|zip|rar)/i)?.[0] || '.pdf';
+                        filename = `documento${extension}`;
+                    }
+                } catch (err) {
+                    console.log("⚠️ No se pudo extraer nombre del archivo, usando genérico");
+                    filename = "documento.pdf";
+                }
+            }
+
             const payload = {
                 type: type,
                 [type]: {
-                    link: file.data_url,
-                    // Solo imágenes y documentos permiten 'caption'
-                    caption: (type === "image" || type === "document") ? event.content : undefined,
-                    // Si es documento, intentamos poner el nombre original
-                    filename: type === "document" ? "Documento" : undefined
+                    link: file.data_url
                 },
                 provenance: "chatwoot"
             };
+
+            // Solo agregar caption si el tipo lo permite (imagen o documento)
+            if ((type === "image" || type === "document") && event.content) {
+                payload[type].caption = event.content;
+            }
+
+            // 🔥 AGREGAR FILENAME SOLO PARA DOCUMENTOS
+            if (type === "document") {
+                payload[type].filename = filename;
+            }
 
             await sendMessage(sourceId, payload);
             return res.sendStatus(200);

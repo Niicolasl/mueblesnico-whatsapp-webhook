@@ -170,7 +170,7 @@ export async function handleNewOrderStep(admin, message) {
                             `📦 Código: *${order.order_code}*\n` +
                             `🛠️ Trabajo: ${order.descripcion_trabajo}\n` +
                             `💰 Valor total: $${Number(order.valor_total).toLocaleString()}\n\n` +
-                            "📌 Estado actual: *Pendiente de anticipo*\n" +
+                            "📌 Estado actual: *Pendiente de anticipo*\n\n" +
                             "Te avisaremos cuando haya novedades 🙌"
                     }
                 });
