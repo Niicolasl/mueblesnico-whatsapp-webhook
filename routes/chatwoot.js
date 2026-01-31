@@ -27,6 +27,14 @@ router.post("/", async (req, res) => {
         const sourceId = event.conversation?.contact_inbox?.source_id || event.conversation?.meta?.sender?.phone_number;
         const text = event.content?.trim();
         const attachments = event.attachments;
+        // 🔥 DEBUG TEMPORAL - COPIAR ESTO
+        if (attachments && attachments.length > 0) {
+            console.log("=".repeat(60));
+            console.log("📎 DEBUG ATTACHMENT COMPLETO:");
+            console.log(JSON.stringify(event, null, 2));
+            console.log("=".repeat(60));
+        }
+
 
         if (!sourceId) return res.sendStatus(200);
 
@@ -99,10 +107,12 @@ router.post("/", async (req, res) => {
                 payload[type].filename = filename;
             }
 
+            console.log(`📤 Enviando ${type} con filename: ${filename}`);
+
             await sendMessage(sourceId, payload);
             return res.sendStatus(200);
         }
-
+        
         // =====================================================
         // 💬 LÓGICA DE TEXTO SIMPLE
         // =====================================================
