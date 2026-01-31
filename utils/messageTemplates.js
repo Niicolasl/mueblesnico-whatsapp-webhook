@@ -71,17 +71,23 @@ export const seleccionarPedidoSaldo = (orders) => ({
       sections: [
         {
           title: "Mis pedidos",
-          rows: orders.map(o => ({
-            id: `SALDO_${o.id}`,
-            title: o.codigo,
-            description: `${o.descripcion} - Saldo: $${Number(o.saldo).toLocaleString()}`
-          }))
+          rows: orders.map(o => {
+            // 🔥 TRUNCAR descripción si excede 50 caracteres (dejando espacio para el saldo)
+            const descripcionCorta = o.descripcion.length > 40
+              ? o.descripcion.substring(0, 37) + "..."
+              : o.descripcion;
+
+            return {
+              id: `SALDO_${o.id}`,
+              title: o.codigo,
+              description: `${descripcionCorta} - $${Number(o.saldo).toLocaleString()}`
+            };
+          })
         }
       ]
     }
   }
 });
-
 /* =====================================================
    💰 SALDO NO ENCONTRADO
 ===================================================== */
@@ -122,11 +128,20 @@ export const seleccionarPedidoEstado = (pedidos) => ({
       sections: [
         {
           title: "Mis pedidos",
-          rows: pedidos.map(p => ({
-            id: `PEDIDO_${p.id}`,
-            title: p.order_code,
-            description: `${p.descripcion_trabajo} - ${estadoPedidoCorto(p.estado_pedido)}`
-          }))
+          rows: pedidos.map(p => {
+            // 🔥 TRUNCAR descripción si excede 50 caracteres
+            const descripcionCorta = p.descripcion_trabajo.length > 45
+              ? p.descripcion_trabajo.substring(0, 42) + "..."
+              : p.descripcion_trabajo;
+
+            const estadoTexto = estadoPedidoCorto(p.estado_pedido);
+
+            return {
+              id: `PEDIDO_${p.id}`,
+              title: p.order_code,
+              description: `${descripcionCorta} - ${estadoTexto}`
+            };
+          })
         }
       ]
     }
