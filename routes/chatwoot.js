@@ -27,15 +27,7 @@ router.post("/", async (req, res) => {
         const sourceId = event.conversation?.contact_inbox?.source_id || event.conversation?.meta?.sender?.phone_number;
         const text = event.content?.trim();
         const attachments = event.attachments;
-        // 🔥 DEBUG TEMPORAL - COPIAR ESTO
-        if (attachments && attachments.length > 0) {
-            console.log("=".repeat(60));
-            console.log("📎 DEBUG ATTACHMENT COMPLETO:");
-            console.log(JSON.stringify(event, null, 2));
-            console.log("=".repeat(60));
-        }
-
-
+        
         if (!sourceId) return res.sendStatus(200);
 
         // 4. Bloqueo de comandos manuales
@@ -47,7 +39,7 @@ router.post("/", async (req, res) => {
         }
 
         // =====================================================
-        // 📂 LÓGICA DE ENVÍO MULTIMEDIA (CON FILENAME CORRECTO)
+        // 📂 LÓGICA DE ENVÍO MULTIMEDIA (FILENAME CORRECTO)
         // =====================================================
 
         if (attachments && attachments.length > 0) {
@@ -60,31 +52,35 @@ router.post("/", async (req, res) => {
             if (file.file_type === "video") type = "video";
 
             // 🔥 EXTRAER NOMBRE DEL ARCHIVO DESDE LA URL
-            let filename = "archivo"; // fallback
+            let filename = "documento.pdf"; // fallback
 
-            if (type === "document") {
-                // Opción 1: Chatwoot envía el nombre en data_url
-                // Ejemplo: https://chatwoot.com/rails/active_storage/.../Cotizacion.pdf
+            if (type === "document" && file.data_url) {
                 try {
+                    // La URL de Chatwoot viene así:
+                    // https://chatwoot.../rails/active_storage/blobs/redirect/TOKEN/Prueba_Debug.pdf
+
+                    // Obtener la última parte de la URL (después de la última /)
                     const urlParts = file.data_url.split('/');
                     const lastPart = urlParts[urlParts.length - 1];
 
-                    // Decodificar por si tiene caracteres especiales (%20, etc.)
-                    const decodedName = decodeURIComponent(lastPart);
+                    console.log(`🔍 Última parte de URL: ${lastPart}`);
 
-                    // Remover query params si existen (ej: ?token=xxx)
-                    const cleanName = decodedName.split('?')[0];
+                    // Decodificar caracteres especiales (%20 → espacio, etc.)
+                    const decoded = decodeURIComponent(lastPart);
 
-                    // Si tiene extensión válida, usar ese nombre
-                    if (/\.(pdf|docx?|xlsx?|txt|csv|zip|rar)$/i.test(cleanName)) {
-                        filename = cleanName;
+                    // Verificar si tiene una extensión válida de documento
+                    const hasValidExtension = /\.(pdf|docx?|xlsx?|txt|csv|zip|rar|pptx?|png|jpe?g|gif)$/i.test(decoded);
+
+                    if (hasValidExtension) {
+                        filename = decoded;
+                        console.log(`✅ Nombre extraído: ${filename}`);
                     } else {
-                        // Si no tiene extensión, intentar extraerla del mime_type o data_url
-                        const extension = file.data_url.match(/\.(pdf|docx?|xlsx?|txt|csv|zip|rar)/i)?.[0] || '.pdf';
-                        filename = `documento${extension}`;
+                        console.log(`⚠️ No se encontró extensión válida, usando genérico`);
+                        // Intentar obtener extensión del mime_type si existe
+                        filename = "documento.pdf";
                     }
                 } catch (err) {
-                    console.log("⚠️ No se pudo extraer nombre del archivo, usando genérico");
+                    console.error("⚠️ Error extrayendo filename:", err.message);
                     filename = "documento.pdf";
                 }
             }
@@ -105,9 +101,8 @@ router.post("/", async (req, res) => {
             // 🔥 AGREGAR FILENAME SOLO PARA DOCUMENTOS
             if (type === "document") {
                 payload[type].filename = filename;
+                console.log(`📤 Enviando documento con filename: "${filename}"`);
             }
-
-            console.log(`📤 Enviando ${type} con filename: ${filename}`);
 
             await sendMessage(sourceId, payload);
             return res.sendStatus(200);
