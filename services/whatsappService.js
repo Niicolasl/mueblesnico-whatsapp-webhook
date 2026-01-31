@@ -403,7 +403,7 @@ export const handleMessage = async (req, res) => {
     }
 
     // =====================================================
-    // 🟩 ADMIN: CAMBIO DE ESTADO MANUAL
+    // 🟩 ADMIN: CAMBIO DE ESTADO MANUAL (CON CONFIRMACIÓN)
     // =====================================================
     const comandosEstado = {
       "/listo": "LISTO",
@@ -455,10 +455,51 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // ✅ ACTUALIZAR
-      const pedido = await actualizarEstadoPedido(orderCode, nuevoEstado);
+      const pedido = validacion.pedido;
 
-      if (!pedido) {
+      // 🔥 GUARDAR PEDIDO Y CAMBIAR A CONFIRMACIÓN
+      adminState[from].pedido = pedido;
+      adminState[from].step = "confirmar_estado";
+
+      const estadoTexto = nuevoEstado === "LISTO"
+        ? "✅ LISTO para entrega"
+        : "✅ ENTREGADO";
+
+      await enviar(from, {
+        text: {
+          body:
+            "⚠️ *Confirma el cambio de estado*\n\n" +
+            `📦 Pedido: ${pedido.order_code}\n` +
+            `🛠️ Trabajo: ${pedido.descripcion_trabajo}\n` +
+            `👤 Cliente: ${pedido.nombre_cliente}\n\n` +
+            `${estadoTexto}\n\n` +
+            "Escribe *SI* para confirmar\n" +
+            "Escribe *NO* para cancelar"
+        }
+      });
+
+      return res.sendStatus(200);
+    }
+
+    // 🔥 NUEVO PASO: CONFIRMAR CAMBIO DE ESTADO
+    if (esAdmin && adminState[from]?.step === "confirmar_estado") {
+      const respuesta = inputLower;
+
+      if (respuesta !== "si") {
+        await enviar(from, {
+          text: { body: "❎ Cambio de estado cancelado." }
+        });
+        delete adminState[from];
+        return res.sendStatus(200);
+      }
+
+      const pedido = adminState[from].pedido;
+      const nuevoEstado = adminState[from].nuevoEstado;
+
+      // ✅ ACTUALIZAR ESTADO
+      const pedidoActualizado = await actualizarEstadoPedido(pedido.order_code, nuevoEstado);
+
+      if (!pedidoActualizado) {
         await enviar(from, {
           text: {
             body:
@@ -470,13 +511,26 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // 📩 NOTIFICAR CLIENTE
-      await notificarCambioEstado(pedido, enviar);
+      delete adminState[from];
+
+      // ✅ CONFIRMACIÓN AL ADMIN
+      await enviar(from, {
+        text: {
+          body:
+            `✅ *Estado actualizado*\n\n` +
+            `📦 Pedido: ${pedidoActualizado.order_code}\n` +
+            `🛠️ Trabajo: ${pedidoActualizado.descripcion_trabajo}\n` +
+            `📌 Nuevo estado: ${nuevoEstado.replace("_", " ")}`,
+        },
+      });
+
+      // 📩 NOTIFICAR AL CLIENTE
+      await notificarCambioEstado(pedidoActualizado, enviar);
 
       // 🏷️ SINCRONIZAR CHATWOOT
       try {
-        await sincronizarEtiquetasCliente(pedido.numero_whatsapp);
-        await actualizarAtributosCliente(pedido.numero_whatsapp);
+        await sincronizarEtiquetasCliente(pedidoActualizado.numero_whatsapp);
+        await actualizarAtributosCliente(pedidoActualizado.numero_whatsapp);
       } catch (err) {
         console.error("⚠️ Error sincronizando Chatwoot:", err.message);
       }
@@ -673,29 +727,38 @@ export const handleMessage = async (req, res) => {
 
       // ✅ Mensaje al CLIENTE
       let mensajeCliente;
+      // Guardamos el saldo en una variable para usarla varias veces
+      const saldoPendiente = Number(result.saldo_pendiente);
 
-      if (Number(result.saldo_pendiente) <= 0) {
+      if (saldoPendiente <= 0) {
+        // Caso: Pago TOTAL
         mensajeCliente =
           `🎉 *¡Pago completado!*\n\n` +
           `Tu pedido ya está completamente pagado:\n` +
           `📦 ${formatOrderInline(result.order_code, result.descripcion_trabajo)}\n\n` +
           `¡Gracias por confiar en Muebles Nico!`;
       } else {
+        // Caso: Abono parcial
         mensajeCliente =
           `💳 *Hemos recibido tu abono*\n\n` +
           formatOrderHeader(result.order_code, result.descripcion_trabajo, result.valor_total) +
           `\n\n` +
           `Abono recibido: $${valor.toLocaleString()}\n` +
-          `Saldo pendiente: $${Number(result.saldo_pendiente).toLocaleString()}\n\n` +
-          `Gracias por tu pago 🙌\n\n` +
-          `Puedes escribir *menú* para ver el estado y saldo de tus pedidos`;
+          `Saldo pendiente: $${saldoPendiente.toLocaleString()}\n\n` +
+          `Gracias por tu pago 🙌`;
       }
 
+      // 1. Enviamos el recibo (se envía siempre)
       await enviar(result.numero_whatsapp, {
-        text: {
-          body: mensajeCliente,
-        },
+        text: { body: mensajeCliente },
       });
+
+      // 2. Enviamos el mensaje del menú SOLO si hay deuda pendiente
+      if (saldoPendiente > 0) {
+        await enviar(result.numero_whatsapp, {
+          text: { body: `Puedes escribir *menú* para ver el estado y saldo de tus pedidos` },
+        });
+      }
 
       // 🏷️ SINCRONIZAR CHATWOOT
       try {
