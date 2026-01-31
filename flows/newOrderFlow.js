@@ -174,7 +174,8 @@ export async function handleNewOrderStep(admin, message) {
                             "Te avisaremos cuando haya novedades 🙌"
                     }
                 });
-                await enviar(result.numero_whatsapp, {
+                await sendMessage(order.numero_whatsapp, {
+                    messaging_product: "whatsapp",
                     text: {
                         body: `Puedes escribir *menú* para ver el estado y saldo de tus pedidos`,
                     },
