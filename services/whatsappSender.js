@@ -29,6 +29,13 @@ export const sendMessage = async (to, payload) => {
         link: payload[type].link,
         caption: payload[type].caption || ""
       };
+
+      // 🔥 AGREGAR FILENAME PARA DOCUMENTOS
+      if (type === "document" && payload[type].filename) {
+        body[type].filename = payload[type].filename;
+        console.log(`📎 Agregando filename al payload de WhatsApp: "${payload[type].filename}"`);
+      }
+
       const iconos = { image: "📷", document: "📄", video: "🎥" };
       textToMirror = `${iconos[type]} Archivo enviado: ${payload[type].caption || type}`;
     }
