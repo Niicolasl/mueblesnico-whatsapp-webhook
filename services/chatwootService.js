@@ -282,48 +282,35 @@ async function reemplazarEtiquetas(phone, labelNames) {
 
         if (!conversationId) return;
 
-        console.log(`🔍 Sincronizando etiquetas:`, {
-            phone,
-            nuevas: labelNames,
-            conversationId
-        });
+        // 🔍 DEBUG: Imprimir TODA la info
+        console.log("=".repeat(60));
+        console.log("🔍 DEBUG COMPLETO:");
+        console.log("CHATWOOT_BASE:", CHATWOOT_BASE);
+        console.log("ACCOUNT_ID:", ACCOUNT_ID);
+        console.log("conversationId:", conversationId);
+        console.log("Etiquetas nuevas:", labelNames);
 
-        // 🔥 PASO 1: OBTENER ETIQUETAS ACTUALES
-        const convoData = await axios.get(
-            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}`,
+        const url = `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`;
+        console.log("URL completa:", url);
+        console.log("=".repeat(60));
+
+        // Intentar POST
+        const response = await axios.post(
+            url,
+            { labels: labelNames },
             { headers }
         );
 
-        const etiquetasActuales = convoData.data?.labels || [];
-        console.log(`📋 Etiquetas actuales: [${etiquetasActuales.join(", ") || "ninguna"}]`);
-
-        // 🔥 PASO 2: ELIMINAR TODAS LAS ETIQUETAS DE UNA VEZ
-        if (etiquetasActuales.length > 0) {
-            await axios.delete(
-                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`,
-                {
-                    headers,
-                    data: { labels: etiquetasActuales }
-                }
-            );
-            console.log(`🗑️ ${etiquetasActuales.length} etiqueta(s) eliminada(s)`);
-        }
-
-        // 🔥 PASO 3: AGREGAR NUEVAS ETIQUETAS (si hay)
-        if (labelNames.length > 0) {
-            await axios.post(
-                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`,
-                { labels: labelNames },
-                { headers }
-            );
-            console.log(`✅ Nuevas etiquetas: [${labelNames.join(", ")}]`);
-        } else {
-            console.log(`✨ Sin etiquetas (cliente completado)`);
-        }
+        console.log("✅ Respuesta exitosa:", response.status);
 
     } catch (err) {
-        console.error(`⚠️ Error reemplazando etiquetas:`, err.message);
-        console.error(`⚠️ Detalles:`, err.response?.data || err);
+        console.error("❌ ERROR DETALLADO:");
+        console.error("Status:", err.response?.status);
+        console.error("URL intentada:", err.config?.url);
+        console.error("Método:", err.config?.method);
+        console.error("Headers enviados:", err.config?.headers);
+        console.error("Body enviado:", err.config?.data);
+        console.error("Respuesta del servidor:", err.response?.data?.substring(0, 200));
     }
 }
 
