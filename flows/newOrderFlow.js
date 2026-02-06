@@ -4,6 +4,7 @@ import {
     sincronizarEtiquetasCliente,
     actualizarAtributosCliente
 } from "../services/chatwootService.js";
+import { crearPlantillaPedidoCreado } from "../utils/whatsappTemplates.js";
 
 /**
  * Estado del flujo por admin
@@ -161,25 +162,26 @@ export async function handleNewOrderStep(admin, message) {
                     }
                 });
 
-                // 📲 NOTIFICACIÓN AL CLIENTE (FORMATO COMPLETO)
-                await sendMessage(order.numero_whatsapp, {
-                    messaging_product: "whatsapp",
-                    text: {
-                        body:
-                            "📝 *Pedido registrado*\n\n" +
-                            `📦 Código: *${order.order_code}*\n` +
-                            `🛠️ Trabajo: ${order.descripcion_trabajo}\n` +
-                            `💰 Valor total: $${Number(order.valor_total).toLocaleString()}\n\n` +
-                            "📌 Estado actual: *Pendiente de anticipo*\n\n" +
-                            "Te avisaremos cuando haya novedades 🙌"
-                    }
-                });
-                await sendMessage(order.numero_whatsapp, {
-                    messaging_product: "whatsapp",
-                    text: {
-                        body: `Puedes escribir *menú* para ver el estado y saldo de tus pedidos`,
-                    },
-                });
+                // 📲 NOTIFICACIÓN AL CLIENTE (CON PLANTILLA APROBADA)
+                try {
+                    const plantilla = crearPlantillaPedidoCreado(order);
+                    await sendMessage(order.numero_whatsapp, plantilla);
+                    console.log(`✅ Plantilla enviada a ${order.numero_whatsapp}`);
+                } catch (err) {
+                    console.error(`⚠️ Error enviando plantilla:`, err.message);
+
+                    // 🔥 FALLBACK: Notificar al admin que debe pedir al cliente que escriba
+                    await sendMessage(admin, {
+                        messaging_product: "whatsapp",
+                        text: {
+                            body:
+                                `⚠️ *No se pudo notificar automáticamente al cliente*\n\n` +
+                                `Cliente: ${order.nombre_cliente}\n` +
+                                `Teléfono: ${order.numero_whatsapp}\n\n` +
+                                `Pídele que te escriba "Hola" para activar las notificaciones.`
+                        }
+                    });
+                }
 
                 // 🏷️ SINCRONIZAR CHATWOOT
                 try {

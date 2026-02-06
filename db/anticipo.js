@@ -43,18 +43,18 @@ export async function registrarAnticipo(orderCode, valorAbonado) {
 
         const update = await pool.query(
             `UPDATE orders
-       SET
-         valor_abonado = $1,
-         saldo_pendiente = $2,
-         fecha_aprox_entrega = $3,
-         estado_pedido = $4
-       WHERE order_code = $5
-       RETURNING *`,
+             SET
+               valor_abonado = $1,
+               saldo_pendiente = $2,
+               fecha_aprox_entrega = $3,
+               estado_pedido = $4
+             WHERE order_code = $5
+             RETURNING *`,
             [
                 nuevoAbono,
                 nuevoSaldo,
                 fechaEntrega,
-                nuevoSaldo === 0 ? "pagado" : "en_fabricacion",
+                nuevoSaldo === 0 ? "PAGADO" : "EN_FABRICACION", 
                 orderCode
             ]
         );

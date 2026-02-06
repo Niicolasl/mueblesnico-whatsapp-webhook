@@ -168,7 +168,7 @@ async function getPedidosActivosByPhone(phone) {
         `SELECT * FROM orders 
          WHERE numero_whatsapp = $1 
          AND cancelado = false 
-         AND estado_pedido != 'entregado'
+         AND UPPER(estado_pedido) != 'ENTREGADO'
          ORDER BY fecha_creacion DESC`,
         [phone]
     );
@@ -282,35 +282,29 @@ async function reemplazarEtiquetas(phone, labelNames) {
 
         if (!conversationId) return;
 
-        // 🔍 DEBUG: Imprimir TODA la info
-        console.log("=".repeat(60));
-        console.log("🔍 DEBUG COMPLETO:");
-        console.log("CHATWOOT_BASE:", CHATWOOT_BASE);
-        console.log("ACCOUNT_ID:", ACCOUNT_ID);
-        console.log("conversationId:", conversationId);
-        console.log("Etiquetas nuevas:", labelNames);
+        console.log(`🔍 Sincronizando etiquetas para conversación ${conversationId}`);
+        console.log(`📋 Etiquetas objetivo:`, labelNames);
 
-        const url = `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`;
-        console.log("URL completa:", url);
-        console.log("=".repeat(60));
-
-        // Intentar POST
-        const response = await axios.post(
-            url,
-            { labels: labelNames },
+        // 🔥 MÉTODO CORRECTO PARA CHATWOOT v4.x
+        // Usar PATCH en /conversations para actualizar las etiquetas
+        await axios.patch(
+            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}`,
+            {
+                labels: labelNames  // Esto REEMPLAZA todas las etiquetas
+            },
             { headers }
         );
 
-        console.log("✅ Respuesta exitosa:", response.status);
+        if (labelNames.length > 0) {
+            console.log(`✅ Etiquetas actualizadas: [${labelNames.join(", ")}]`);
+        } else {
+            console.log(`✨ Etiquetas eliminadas (cliente completado)`);
+        }
 
     } catch (err) {
-        console.error("❌ ERROR DETALLADO:");
-        console.error("Status:", err.response?.status);
-        console.error("URL intentada:", err.config?.url);
-        console.error("Método:", err.config?.method);
-        console.error("Headers enviados:", err.config?.headers);
-        console.error("Body enviado:", err.config?.data);
-        console.error("Respuesta del servidor:", err.response?.data?.substring(0, 200));
+        console.error(`⚠️ Error reemplazando etiquetas:`, err.message);
+        console.error(`⚠️ Status:`, err.response?.status);
+        console.error(`⚠️ Datos:`, err.response?.data);
     }
 }
 
