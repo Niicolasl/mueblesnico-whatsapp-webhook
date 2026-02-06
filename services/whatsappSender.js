@@ -55,7 +55,15 @@ export const sendMessage = async (to, payload) => {
       textToMirror = `📋 Menú enviado: ${bodyText}`;
     }
 
-    // --- 4. TEXTO SIMPLE ---
+    // --- 4. PLANTILLAS (TEMPLATES) ---
+    else if (type === "template") {
+      body.type = "template";
+      body.template = payload.template;
+      textToMirror = `📋 Plantilla enviada: ${payload.template.name}`;
+      console.log(`📤 Enviando plantilla "${payload.template.name}" a ${to}`);
+    }
+
+    // --- 5. TEXTO SIMPLE ---
     else if (type === "text" || payload.text) {
       body.type = "text";
       body.text = payload.text?.body ? payload.text : { body: payload.text };
@@ -73,6 +81,8 @@ export const sendMessage = async (to, payload) => {
       body,
       { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
     );
+
+    console.log(`✅ Mensaje enviado exitosamente a ${to}`);
 
     // 🔄 Espejo en Chatwoot (Solo si no viene de Chatwoot)
     if (textToMirror && payload.provenance !== "chatwoot") {
