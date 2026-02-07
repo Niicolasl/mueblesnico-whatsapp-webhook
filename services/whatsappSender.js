@@ -83,6 +83,7 @@ export const sendMessage = async (to, payload) => {
     );
 
     console.log(`✅ Mensaje enviado exitosamente a ${to}`);
+    console.log(`📊 Respuesta de WhatsApp:`, JSON.stringify(response.data, null, 2));
 
     // 🔄 Espejo en Chatwoot (Solo si no viene de Chatwoot)
     if (textToMirror && payload.provenance !== "chatwoot") {
@@ -95,7 +96,10 @@ export const sendMessage = async (to, payload) => {
 
     return response.data;
   } catch (error) {
-    console.error("❌ ERROR WHATSAPP API:", JSON.stringify(error.response?.data, null, 2) || error.message);
+    console.error("❌ ERROR WHATSAPP API COMPLETO:");
+    console.error("Status:", error.response?.status);
+    console.error("Data:", JSON.stringify(error.response?.data, null, 2));
+    console.error("Payload enviado:", JSON.stringify(body, null, 2));
     return null;
   }
 };
