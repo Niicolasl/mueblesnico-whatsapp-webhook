@@ -2,6 +2,7 @@ import axios from "axios";
 import FormData from 'form-data';
 import 'dotenv/config';
 import { pool } from "../db/init.js";
+import { normalizarTelefono } from "../utils/phone.js";
 
 const CHATWOOT_BASE = process.env.CHATWOOT_BASE;
 const CHATWOOT_TOKEN = process.env.CHATWOOT_API_TOKEN;
@@ -164,18 +165,22 @@ async function asignarAgente(conversationId, agentId) {
 // ===============================
 
 async function getPedidosActivosByPhone(phone) {
+    const phoneNormalizado = normalizarTelefono(phone);  // 🔥 Usar helper
+
     const result = await pool.query(
         `SELECT * FROM orders 
          WHERE numero_whatsapp = $1 
          AND cancelado = false 
          AND UPPER(estado_pedido) != 'ENTREGADO'
          ORDER BY fecha_creacion DESC`,
-        [phone]
+        [phoneNormalizado]
     );
     return result.rows;
 }
 
 async function getPedidosConDeuda(phone) {
+    const phoneNormalizado = normalizarTelefono(phone);  // 🔥 Usar helper
+
     const result = await pool.query(
         `SELECT order_code, descripcion_trabajo, saldo_pendiente, estado_pedido
          FROM orders 
@@ -183,7 +188,7 @@ async function getPedidosConDeuda(phone) {
          AND cancelado = false
          AND saldo_pendiente > 0
          ORDER BY fecha_creacion DESC`,
-        [phone]
+        [phoneNormalizado]
     );
     return result.rows;
 }
@@ -205,12 +210,17 @@ async function getTotalGastadoHistorico(phone) {
 // 🏷️ GESTIÓN DE ETIQUETAS
 // ===============================
 
+
 export async function sincronizarEtiquetasCliente(phone) {
     try {
         console.log(`🏷️ Sincronizando etiquetas para ${phone}...`);
+        console.log(`🔍 DEBUG - Teléfono recibido: "${phone}" (tipo: ${typeof phone}, longitud: ${phone?.length})`);
 
         const pedidosActivos = await getPedidosActivosByPhone(phone);
+        console.log(`🔍 DEBUG - Pedidos activos encontrados: ${pedidosActivos.length}`);
+
         const pedidosConDeuda = await getPedidosConDeuda(phone);
+        console.log(`🔍 DEBUG - Pedidos con deuda encontrados: ${pedidosConDeuda.length}`);
 
         const etiquetas = [];
 
