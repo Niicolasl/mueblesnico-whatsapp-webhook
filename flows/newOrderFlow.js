@@ -5,6 +5,7 @@ import {
     actualizarAtributosCliente
 } from "../services/chatwootService.js";
 import { crearPlantillaPedidoCreado } from "../utils/whatsappTemplates.js";
+import { telefonoParaWhatsApp } from "../utils/phone.js";  // 🔥 AGREGAR ESTE IMPORT
 
 /**
  * Estado del flujo por admin
@@ -162,15 +163,19 @@ export async function handleNewOrderStep(admin, message) {
                     }
                 });
 
-                // 📲 NOTIFICACIÓN AL CLIENTE (CON PLANTILLA APROBADA)
+                // 📲 NOTIFICACIÓN AL CLIENTE (CON FORMATO CORRECTO)
                 try {
                     const plantilla = crearPlantillaPedidoCreado(order);
-                    await sendMessage(order.numero_whatsapp, plantilla);
-                    console.log(`✅ Plantilla enviada a ${order.numero_whatsapp}`);
+                    const numeroFormateado = telefonoParaWhatsApp(order.numero_whatsapp);  // 🔥 AGREGAR ESTA LÍNEA
+
+                    console.log(`📤 Intentando enviar plantilla a: ${numeroFormateado} (original: ${order.numero_whatsapp})`);
+
+                    await sendMessage(numeroFormateado, plantilla);  // 🔥 USAR numeroFormateado EN LUGAR DE order.numero_whatsapp
+                    console.log(`✅ Plantilla enviada exitosamente a ${numeroFormateado}`);
                 } catch (err) {
                     console.error(`⚠️ Error enviando plantilla:`, err.message);
 
-                    // 🔥 FALLBACK: Notificar al admin que debe pedir al cliente que escriba
+                    // 🔥 FALLBACK: Notificar al admin
                     await sendMessage(admin, {
                         messaging_product: "whatsapp",
                         text: {
