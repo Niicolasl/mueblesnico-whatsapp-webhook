@@ -295,20 +295,42 @@ async function reemplazarEtiquetas(phone, labelNames) {
         console.log(`🔍 Sincronizando etiquetas para conversación ${conversationId}`);
         console.log(`📋 Etiquetas objetivo:`, labelNames);
 
-        // 🔥 MÉTODO CORRECTO PARA CHATWOOT v4.x
-        // Usar PATCH en /conversations para actualizar las etiquetas
-        await axios.patch(
+        // 🔥 PASO 1: OBTENER ETIQUETAS ACTUALES
+        const convoData = await axios.get(
             `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}`,
-            {
-                labels: labelNames  // Esto REEMPLAZA todas las etiquetas
-            },
             { headers }
         );
 
+        const etiquetasActuales = convoData.data?.labels || [];
+        console.log(`📋 Etiquetas actuales:`, etiquetasActuales);
+
+        // 🔥 PASO 2: ELIMINAR TODAS LAS ETIQUETAS ACTUALES (una por una)
+        for (const labelName of etiquetasActuales) {
+            try {
+                await axios.post(
+                    `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`,
+                    { labels: [labelName] },
+                    {
+                        headers,
+                        params: { remove: true }  // Parámetro para eliminar
+                    }
+                );
+                console.log(`🗑️ Etiqueta eliminada: ${labelName}`);
+            } catch (err) {
+                console.error(`⚠️ Error eliminando etiqueta ${labelName}:`, err.message);
+            }
+        }
+
+        // 🔥 PASO 3: AGREGAR NUEVAS ETIQUETAS (si hay)
         if (labelNames.length > 0) {
-            console.log(`✅ Etiquetas actualizadas: [${labelNames.join(", ")}]`);
+            await axios.post(
+                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`,
+                { labels: labelNames },
+                { headers }
+            );
+            console.log(`✅ Nuevas etiquetas agregadas: [${labelNames.join(", ")}]`);
         } else {
-            console.log(`✨ Etiquetas eliminadas (cliente completado)`);
+            console.log(`✨ Sin etiquetas nuevas (cliente completado)`);
         }
 
     } catch (err) {
@@ -317,7 +339,6 @@ async function reemplazarEtiquetas(phone, labelNames) {
         console.error(`⚠️ Datos:`, err.response?.data);
     }
 }
-
 // ===============================
 // 📊 GESTIÓN DE ATRIBUTOS
 // ===============================
