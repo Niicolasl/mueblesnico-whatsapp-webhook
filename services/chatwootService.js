@@ -214,15 +214,13 @@ async function getTotalGastadoHistorico(phone) {
 export async function sincronizarEtiquetasCliente(phone) {
     try {
         console.log(`🏷️ Sincronizando etiquetas para ${phone}...`);
-        console.log(`🔍 DEBUG - Teléfono recibido: "${phone}" (tipo: ${typeof phone}, longitud: ${phone?.length})`);
 
         const pedidosActivos = await getPedidosActivosByPhone(phone);
-        console.log(`🔍 DEBUG - Pedidos activos encontrados: ${pedidosActivos.length}`);
-
         const pedidosConDeuda = await getPedidosConDeuda(phone);
-        console.log(`🔍 DEBUG - Pedidos con deuda encontrados: ${pedidosConDeuda.length}`);
 
         const etiquetas = [];
+
+        console.log(`🔍 DEBUG - Pedidos activos: ${pedidosActivos.length}, Con deuda: ${pedidosConDeuda.length}`);
 
         // ========================================
         // CASO 1: SIN PEDIDOS ACTIVOS Y SIN DEUDA
@@ -244,7 +242,7 @@ export async function sincronizarEtiquetasCliente(phone) {
             );
 
             const tieneEnFabricacion = pedidosActivos.some(p =>
-                p.estado_pedido === "en_fabricacion" ||
+                p.estado_pedido === "EN_FABRICACION" ||
                 p.estado_pedido === "pendiente de inicio"
             );
 
@@ -252,13 +250,25 @@ export async function sincronizarEtiquetasCliente(phone) {
                 p.estado_pedido === "LISTO"
             );
 
-            if (tienePendienteAnticipo) etiquetas.push("pendiente_anticipo");
-            if (tieneEnFabricacion) etiquetas.push("en_fabricacion");
-            if (tieneListo) etiquetas.push("listo");
+            const tienePagado = pedidosActivos.some(p =>
+                p.estado_pedido === "PAGADO"
+            );
+
+            // 🔥 PRIORIDAD DE ETIQUETAS DE ESTADO
+            if (tieneListo) {
+                etiquetas.push("listo");
+            } else if (tienePagado) {
+                // Solo agregar si NO está listo (para evitar duplicados)
+                // No agregamos nada aquí, el estado "pagado" se maneja abajo
+            } else if (tieneEnFabricacion) {
+                etiquetas.push("en_fabricacion");
+            } else if (tienePendienteAnticipo) {
+                etiquetas.push("pendiente_anticipo");
+            }
         }
 
         // ========================================
-        // ETIQUETAS DE PAGO
+        // ETIQUETAS DE PAGO (SIEMPRE AL FINAL)
         // ========================================
         if (pedidosConDeuda.length > 0) {
             etiquetas.push("pago_pendiente");
@@ -283,7 +293,6 @@ export async function sincronizarEtiquetasCliente(phone) {
         console.error(`⚠️ Error sincronizando etiquetas:`, err.message);
     }
 }
-
 async function reemplazarEtiquetas(phone, labelNames) {
     try {
         const e164 = toE164(phone);
