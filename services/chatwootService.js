@@ -216,13 +216,9 @@ async function getTotalGastadoHistorico(phone) {
 
 export async function sincronizarEtiquetasCliente(phone) {
     // 🔒 Prevenir sincronizaciones simultáneas
-    console.log(`🔥🔥🔥 SINCRONIZACIÓN INICIADA PARA: ${phone}`);
-    console.log(`🔥🔥🔥 Stack completo:`);
-    console.trace();
     if (syncLocks.has(phone)) {
-        console.log(`⏳ Ya hay una sincronización en proceso para ${phone}, esperando...`);
-        await syncLocks.get(phone);
-        return;
+        console.log(`⏳ Sincronización ya en progreso para ${phone}, omitiendo duplicado`);
+        return; // ← CAMBIO: Solo return, no await
     }
 
     // Crear promesa de sincronización
@@ -232,7 +228,6 @@ export async function sincronizarEtiquetasCliente(phone) {
 
     try {
         console.log(`🏷️ [${new Date().toISOString()}] Sincronizando etiquetas para ${phone}...`);
-        console.trace('📍 Llamada desde:');
 
         const pedidosActivos = await getPedidosActivosByPhone(phone);
         const pedidosConDeuda = await getPedidosConDeuda(phone);
@@ -302,9 +297,11 @@ export async function sincronizarEtiquetasCliente(phone) {
     } catch (err) {
         console.error(`⚠️ Error sincronizando etiquetas:`, err.message);
     } finally {
-        // 🔓 Liberar lock
-        syncLocks.delete(phone);
-        resolveLock();
+        // 🔓 Liberar lock después de 2 segundos
+        setTimeout(() => {
+            syncLocks.delete(phone);
+            resolveLock();
+        }, 2000); // ← CAMBIO: Mantener lock por 2 segundos para bloquear duplicados
     }
 }
 

@@ -189,7 +189,7 @@ export const textoEstadoPedido = (estado) => {
       return "⏳ Pendiente de anticipo";
     case "pendiente de inicio":
       return "🛠️ En fabricación";
-    case "pagado":
+    case "PAGADO":
       return "🎉 Pagado";
     case "entregado":
       return "✅ Entregado";
