@@ -1,9 +1,9 @@
-const pool = require('./init');
+import pool from './init.js';
 
 /**
  * Generar código de orden para proveedor (PROV-2026-0001)
  */
-async function generateSupplierOrderCode() {
+export async function generateSupplierOrderCode() {
     try {
         const year = new Date().getFullYear();
 
@@ -33,7 +33,7 @@ async function generateSupplierOrderCode() {
 /**
  * Crear nueva orden a proveedor
  */
-async function createSupplierOrder(supplierId, descripcionTrabajo, valorTotal) {
+export async function createSupplierOrder(supplierId, descripcionTrabajo, valorTotal) {
     try {
         const orderCode = await generateSupplierOrderCode();
 
@@ -55,7 +55,7 @@ async function createSupplierOrder(supplierId, descripcionTrabajo, valorTotal) {
 /**
  * Buscar orden por código
  */
-async function findSupplierOrderByCode(orderCode) {
+export async function findSupplierOrderByCode(orderCode) {
     try {
         const result = await pool.query(
             `SELECT so.*, s.name as supplier_name, s.phone as supplier_phone
@@ -75,7 +75,7 @@ async function findSupplierOrderByCode(orderCode) {
 /**
  * Obtener todas las órdenes de un proveedor
  */
-async function getSupplierOrders(supplierId) {
+export async function getSupplierOrders(supplierId) {
     try {
         const result = await pool.query(
             `SELECT * FROM supplier_orders 
@@ -94,7 +94,7 @@ async function getSupplierOrders(supplierId) {
 /**
  * Obtener órdenes activas (EN_PROCESO)
  */
-async function getActiveSupplierOrders(supplierId) {
+export async function getActiveSupplierOrders(supplierId) {
     try {
         const result = await pool.query(
             `SELECT * FROM supplier_orders 
@@ -115,7 +115,7 @@ async function getActiveSupplierOrders(supplierId) {
 /**
  * Calcular resumen financiero del proveedor
  */
-async function getSupplierFinancialSummary(supplierId) {
+export async function getSupplierFinancialSummary(supplierId) {
     try {
         const result = await pool.query(
             `SELECT 
@@ -134,12 +134,3 @@ async function getSupplierFinancialSummary(supplierId) {
         throw error;
     }
 }
-
-module.exports = {
-    generateSupplierOrderCode,
-    createSupplierOrder,
-    findSupplierOrderByCode,
-    getSupplierOrders,
-    getActiveSupplierOrders,
-    getSupplierFinancialSummary
-};

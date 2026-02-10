@@ -5,7 +5,7 @@
 /**
  * Formato de fecha DD/MM/YYYY
  */
-function formatDate(date) {
+export function formatDate(date) {
     if (!date) return '';
     const d = new Date(date);
     const day = String(d.getDate()).padStart(2, '0');
@@ -17,7 +17,7 @@ function formatDate(date) {
 /**
  * Resumen de consulta de proveedor
  */
-function formatSupplierConsultation(supplier, orders, summary) {
+export function formatSupplierConsultation(supplier, orders, summary) {
     let mensaje = `👷 *ÓRDENES DE ${supplier.name.toUpperCase()}*\n`;
     mensaje += `📱 ${supplier.phone}\n\n`;
 
@@ -88,20 +88,13 @@ function formatSupplierConsultation(supplier, orders, summary) {
 /**
  * Mensaje de orden no encontrada
  */
-function orderNotFound(orderCode) {
+export function orderNotFound(orderCode) {
     return `❌ No se encontró la orden *${orderCode}*\n\nVerifica el código e intenta nuevamente`;
 }
 
 /**
  * Mensaje de proveedor no encontrado
  */
-function supplierNotFound(phone) {
+export function supplierNotFound(phone) {
     return `❌ No se encontró ningún proveedor con el número *${phone}*\n\nVerifica el número e intenta nuevamente`;
 }
-
-module.exports = {
-    formatSupplierConsultation,
-    orderNotFound,
-    supplierNotFound,
-    formatDate
-};

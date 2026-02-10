@@ -1,9 +1,9 @@
-const pool = require('./init');
+import pool from './init.js';
 
 /**
  * Completar una orden de proveedor
  */
-async function completarOrdenProveedor(orderCode) {
+export async function completarOrdenProveedor(orderCode) {
     const client = await pool.connect();
 
     try {
@@ -64,7 +64,3 @@ async function completarOrdenProveedor(orderCode) {
         client.release();
     }
 }
-
-module.exports = {
-    completarOrdenProveedor
-};

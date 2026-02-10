@@ -1,7 +1,7 @@
-const { getOrCreateSupplier } = require('../db/suppliers');
-const { createSupplierOrder } = require('../db/supplierOrders');
-const { sendWhatsAppMessage, sendWhatsAppTemplate } = require('../services/whatsappSender');
-const { normalizePhoneNumber } = require('../utils/phone');
+import { getOrCreateSupplier } from '../db/suppliers.js';
+import { createSupplierOrder } from '../db/supplierOrders.js';
+import { sendWhatsAppMessage, sendWhatsAppTemplate } from '../services/whatsappSender.js';
+import { normalizePhoneNumber } from '../utils/phone.js';
 
 // Almacenar estado del flujo por usuario
 const flowStates = new Map();
@@ -17,7 +17,7 @@ const FLOW_STEPS = {
 /**
  * Iniciar flujo de creación de orden a proveedor
  */
-function startSupplierOrderFlow(adminPhone) {
+export function startSupplierOrderFlow(adminPhone) {
     flowStates.set(adminPhone, {
         step: FLOW_STEPS.WAITING_NAME,
         data: {}
@@ -29,7 +29,7 @@ function startSupplierOrderFlow(adminPhone) {
 /**
  * Procesar mensaje del flujo
  */
-async function processSupplierOrderFlow(adminPhone, message) {
+export async function processSupplierOrderFlow(adminPhone, message) {
     const state = flowStates.get(adminPhone);
 
     if (!state) {
@@ -197,21 +197,14 @@ async function handleConfirmationStep(adminPhone, message, state) {
 /**
  * Verificar si hay flujo activo
  */
-function hasActiveFlow(adminPhone) {
+export function hasActiveFlow(adminPhone) {
     return flowStates.has(adminPhone);
 }
 
 /**
  * Cancelar flujo activo
  */
-function cancelFlow(adminPhone) {
+export function cancelFlow(adminPhone) {
     flowStates.delete(adminPhone);
     return '❌ Flujo de creación de orden cancelado';
 }
-
-module.exports = {
-    startSupplierOrderFlow,
-    processSupplierOrderFlow,
-    hasActiveFlow,
-    cancelFlow
-};

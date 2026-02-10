@@ -1,36 +1,8 @@
-export function crearPlantillaPedidoCreado(order) {
-    return {
-        messaging_product: "whatsapp",
-        type: "template",
-        template: {
-            name: "pedido_creado",
-            language: { code: "es" },
-            components: [
-                {
-                    type: "body",
-                    parameters: [
-                        {
-                            type: "text",
-                            text: order.nombre_cliente
-                        },
-                        {
-                            type: "text",
-                            text: order.order_code
-                        },
-                        {
-                            type: "text",
-                            text: order.descripcion_trabajo
-                        },
-                        {
-                            type: "text",
-                            text: Number(order.valor_total).toLocaleString()
-                        }
-                    ]
-                }
-            ]
-        }
-    };
-}
+/**
+ * Plantillas aprobadas en Meta para WhatsApp Business
+ * Versión ES Modules
+ */
+
 const TEMPLATES = {
     // Plantilla para clientes: pedido creado
     pedido_creado: {
@@ -124,7 +96,7 @@ const TEMPLATES = {
 /**
  * Construir objeto de plantilla con parámetros
  */
-function buildTemplate(templateName, parameters) {
+export function buildTemplate(templateName, parameters) {
     const template = TEMPLATES[templateName];
 
     if (!template) {
@@ -145,7 +117,20 @@ function buildTemplate(templateName, parameters) {
     return builtTemplate;
 }
 
-module.exports = {
-    TEMPLATES,
-    buildTemplate
-};
+/**
+ * Función helper para crear plantilla de pedido creado (mantiene compatibilidad)
+ */
+export function crearPlantillaPedidoCreado(order) {
+    return {
+        messaging_product: "whatsapp",
+        type: "template",
+        template: buildTemplate('pedido_creado', [
+            order.nombre_cliente,
+            order.order_code,
+            order.descripcion_trabajo,
+            Number(order.valor_total).toLocaleString()
+        ])
+    };
+}
+
+export { TEMPLATES };

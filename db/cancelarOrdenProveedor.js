@@ -1,9 +1,9 @@
-const pool = require('./init');
+import pool from './init.js';
 
 /**
  * Cancelar una orden de proveedor
  */
-async function cancelarOrdenProveedor(orderCode) {
+export async function cancelarOrdenProveedor(orderCode) {
     const client = await pool.connect();
 
     try {
@@ -60,7 +60,3 @@ async function cancelarOrdenProveedor(orderCode) {
         client.release();
     }
 }
-
-module.exports = {
-    cancelarOrdenProveedor
-};

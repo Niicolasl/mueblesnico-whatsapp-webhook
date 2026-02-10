@@ -1,9 +1,9 @@
-const pool = require('./init');
+import pool from './init.js';
 
 /**
  * Crear o obtener un proveedor
  */
-async function getOrCreateSupplier(phone, name) {
+export async function getOrCreateSupplier(phone, name) {
     try {
         // Normalizar teléfono (10 dígitos sin código de país)
         const normalizedPhone = phone.replace(/\D/g, '').slice(-10);
@@ -36,7 +36,7 @@ async function getOrCreateSupplier(phone, name) {
 /**
  * Buscar proveedor por teléfono
  */
-async function findSupplierByPhone(phone) {
+export async function findSupplierByPhone(phone) {
     try {
         const normalizedPhone = phone.replace(/\D/g, '').slice(-10);
 
@@ -55,7 +55,7 @@ async function findSupplierByPhone(phone) {
 /**
  * Buscar proveedor por ID
  */
-async function findSupplierById(supplierId) {
+export async function findSupplierById(supplierId) {
     try {
         const result = await pool.query(
             'SELECT * FROM suppliers WHERE id = $1',
@@ -72,7 +72,7 @@ async function findSupplierById(supplierId) {
 /**
  * Obtener todos los proveedores
  */
-async function getAllSuppliers() {
+export async function getAllSuppliers() {
     try {
         const result = await pool.query(
             'SELECT * FROM suppliers ORDER BY name ASC'
@@ -84,10 +84,3 @@ async function getAllSuppliers() {
         throw error;
     }
 }
-
-module.exports = {
-    getOrCreateSupplier,
-    findSupplierByPhone,
-    findSupplierById,
-    getAllSuppliers
-};

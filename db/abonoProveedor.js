@@ -1,9 +1,9 @@
-const pool = require('./init');
+import pool from './init.js';
 
 /**
  * Registrar un abono a una orden de proveedor
  */
-async function registrarAbonoProveedor(orderCode, montoAbono) {
+export async function registrarAbonoProveedor(orderCode, montoAbono) {
     const client = await pool.connect();
 
     try {
@@ -73,7 +73,3 @@ async function registrarAbonoProveedor(orderCode, montoAbono) {
         client.release();
     }
 }
-
-module.exports = {
-    registrarAbonoProveedor
-};
