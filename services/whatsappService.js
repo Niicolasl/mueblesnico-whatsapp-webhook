@@ -40,6 +40,19 @@ import {
 import { sendMessage } from "./whatsappSender.js";
 import { normalizarTelefono, telefonoParaWhatsApp } from "../utils/phone.js";
 
+const { startSupplierOrderFlow, processSupplierOrderFlow, hasActiveFlow: hasSupplierFlow, cancelFlow: cancelSupplierFlow } = require('../flows/newSupplierOrderFlow');
+const { findSupplierByPhone } = require('../db/suppliers');
+const { findSupplierOrderByCode, getSupplierOrders, getSupplierFinancialSummary } = require('../db/supplierOrders');
+const { registrarAbonoProveedor } = require('../db/abonoProveedor');
+const { completarOrdenProveedor } = require('../db/completarOrdenProveedor');
+const { cancelarOrdenProveedor } = require('../db/cancelarOrdenProveedor');
+const { formatSupplierConsultation, orderNotFound, supplierNotFound, formatDate } = require('../utils/supplierTemplates');
+const { sendWhatsAppTemplate } = require('./whatsappSender');
+
+const pabonoFlowStates = new Map();
+const pcompletarFlowStates = new Map();
+const pcancelarFlowStates = new Map();
+const pconsultarFlowStates = new Map();
 const ADMINS = ["3204128555", "3125906313"];
 const adminState = {};
 
@@ -261,6 +274,366 @@ export const handleMessage = async (req, res) => {
 
       delete estado[from];
       return res.sendStatus(200);
+    }
+
+    if (messageText === '/pnuevo') {
+      const response = startSupplierOrderFlow(from);
+      await sendWhatsAppMessage(from, response);
+      return;
+    }
+
+    // Procesar flujo activo de /pnuevo
+    if (hasSupplierFlow(from)) {
+      if (messageText.toLowerCase() === 'cancelar') {
+        const response = cancelSupplierFlow(from);
+        await sendWhatsAppMessage(from, response);
+        return;
+      }
+
+      const response = await processSupplierOrderFlow(from, messageText);
+      if (response) {
+        await sendWhatsAppMessage(from, response);
+        return;
+      }
+    }
+
+    // Comando: /pabono - Registrar abono a proveedor
+    if (messageText === '/pabono') {
+      pabonoFlowStates.set(from, { step: 'waiting_code' });
+      await sendWhatsAppMessage(from, '💵 *REGISTRAR ABONO A PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n_Ejemplo: PROV-2026-0001_');
+      return;
+    }
+
+    // Flujo de /pabono
+    if (pabonoFlowStates.has(from)) {
+      const state = pabonoFlowStates.get(from);
+
+      if (state.step === 'waiting_code') {
+        const orderCode = messageText.trim().toUpperCase();
+        const orden = await findSupplierOrderByCode(orderCode);
+
+        if (!orden) {
+          await sendWhatsAppMessage(from, orderNotFound(orderCode));
+          return;
+        }
+
+        if (orden.cancelado) {
+          pabonoFlowStates.delete(from);
+          await sendWhatsAppMessage(from, '❌ No se puede abonar a una orden cancelada');
+          return;
+        }
+
+        if (orden.completado) {
+          pabonoFlowStates.delete(from);
+          await sendWhatsAppMessage(from, '❌ Esta orden ya está completada');
+          return;
+        }
+
+        state.step = 'waiting_amount';
+        state.orderCode = orderCode;
+        state.orden = orden;
+        pabonoFlowStates.set(from, state);
+
+        const mensaje = `📋 *ORDEN ${orderCode}*\n\n` +
+          `👷 Proveedor: ${orden.supplier_name}\n` +
+          `🛠️ Trabajo: ${orden.descripcion_trabajo}\n` +
+          `💰 Valor total: $${parseFloat(orden.valor_total).toLocaleString()}\n` +
+          `💵 Abonado: $${parseFloat(orden.valor_abonado).toLocaleString()}\n` +
+          `📊 Saldo pendiente: $${parseFloat(orden.saldo_pendiente).toLocaleString()}\n\n` +
+          `¿Cuánto vas a abonar?\n\n_Solo números (ej: 50000)_`;
+
+        await sendWhatsAppMessage(from, mensaje);
+        return;
+      }
+
+      if (state.step === 'waiting_amount') {
+        const monto = parseFloat(messageText.replace(/\D/g, ''));
+
+        if (isNaN(monto) || monto <= 0) {
+          await sendWhatsAppMessage(from, '❌ Debe ser un valor numérico mayor a cero.\n\n_Ejemplo: 50000_\n\nIntenta nuevamente:');
+          return;
+        }
+
+        if (monto > parseFloat(state.orden.saldo_pendiente)) {
+          await sendWhatsAppMessage(from, `❌ El abono ($${monto.toLocaleString()}) excede el saldo pendiente ($${parseFloat(state.orden.saldo_pendiente).toLocaleString()})`);
+          return;
+        }
+
+        state.step = 'waiting_confirmation';
+        state.monto = monto;
+        pabonoFlowStates.set(from, state);
+
+        const nuevoAbonado = parseFloat(state.orden.valor_abonado) + monto;
+        const nuevoSaldo = parseFloat(state.orden.saldo_pendiente) - monto;
+
+        const resumen = `📋 *CONFIRMAR ABONO*\n\n` +
+          `📦 Orden: ${state.orderCode}\n` +
+          `👷 Proveedor: ${state.orden.supplier_name}\n` +
+          `💵 Abono a registrar: $${monto.toLocaleString()}\n` +
+          `💰 Nuevo total abonado: $${nuevoAbonado.toLocaleString()}\n` +
+          `📊 Nuevo saldo: $${nuevoSaldo.toLocaleString()}\n\n` +
+          `¿Confirmas el abono?\n\nResponde *SI* o *NO*`;
+
+        await sendWhatsAppMessage(from, resumen);
+        return;
+      }
+
+      if (state.step === 'waiting_confirmation') {
+        const respuesta = messageText.trim().toUpperCase();
+
+        if (respuesta !== 'SI' && respuesta !== 'NO') {
+          await sendWhatsAppMessage(from, '❌ Responde *SI* para confirmar o *NO* para cancelar');
+          return;
+        }
+
+        if (respuesta === 'NO') {
+          pabonoFlowStates.delete(from);
+          await sendWhatsAppMessage(from, '❌ Abono cancelado');
+          return;
+        }
+
+        // Registrar abono
+        const result = await registrarAbonoProveedor(state.orderCode, state.monto);
+        pabonoFlowStates.delete(from);
+
+        // Enviar plantilla al proveedor
+        try {
+          await sendWhatsAppTemplate(
+            result.supplierPhone,
+            'abono_proveedor_registrado',
+            [
+              result.supplierName,
+              state.orderCode,
+              state.orden.descripcion_trabajo,
+              result.montoAbono.toLocaleString(),
+              result.nuevoAbonado.toLocaleString(),
+              result.nuevoSaldo.toLocaleString()
+            ]
+          );
+        } catch (error) {
+          console.error('Error enviando plantilla de abono:', error);
+        }
+
+        await sendWhatsAppMessage(from, `✅ *ABONO REGISTRADO*\n\n📦 Orden: ${state.orderCode}\n💵 Abono: $${result.montoAbono.toLocaleString()}\n📊 Nuevo saldo: $${result.nuevoSaldo.toLocaleString()}\n\n✉️ Se ha notificado al proveedor`);
+        return;
+      }
+    }
+
+    // Comando: /pcompletar - Marcar orden como completada
+    if (messageText === '/pcompletar') {
+      pcompletarFlowStates.set(from, { step: 'waiting_code' });
+      await sendWhatsAppMessage(from, '✅ *COMPLETAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n_Ejemplo: PROV-2026-0001_');
+      return;
+    }
+
+    // Flujo de /pcompletar
+    if (pcompletarFlowStates.has(from)) {
+      const state = pcompletarFlowStates.get(from);
+
+      if (state.step === 'waiting_code') {
+        const orderCode = messageText.trim().toUpperCase();
+        const orden = await findSupplierOrderByCode(orderCode);
+
+        if (!orden) {
+          await sendWhatsAppMessage(from, orderNotFound(orderCode));
+          return;
+        }
+
+        if (orden.cancelado) {
+          pcompletarFlowStates.delete(from);
+          await sendWhatsAppMessage(from, '❌ No se puede completar una orden cancelada');
+          return;
+        }
+
+        if (orden.completado) {
+          pcompletarFlowStates.delete(from);
+          await sendWhatsAppMessage(from, '❌ Esta orden ya está completada');
+          return;
+        }
+
+        if (parseFloat(orden.saldo_pendiente) > 0) {
+          pcompletarFlowStates.delete(from);
+          await sendWhatsAppMessage(from, `❌ No se puede completar. Aún hay un saldo pendiente de $${parseFloat(orden.saldo_pendiente).toLocaleString()}\n\nDebes registrar el pago completo antes de marcar como completado.`);
+          return;
+        }
+
+        state.step = 'waiting_confirmation';
+        state.orderCode = orderCode;
+        state.orden = orden;
+        pcompletarFlowStates.set(from, state);
+
+        const resumen = `📋 *CONFIRMAR COMPLETAR ORDEN*\n\n` +
+          `📦 Orden: ${orderCode}\n` +
+          `👷 Proveedor: ${orden.supplier_name}\n` +
+          `🛠️ Trabajo: ${orden.descripcion_trabajo}\n` +
+          `💰 Valor total: $${parseFloat(orden.valor_total).toLocaleString()}\n` +
+          `✅ Pagado totalmente\n\n` +
+          `¿Confirmas marcar como COMPLETADO?\n\nResponde *SI* o *NO*`;
+
+        await sendWhatsAppMessage(from, resumen);
+        return;
+      }
+
+      if (state.step === 'waiting_confirmation') {
+        const respuesta = messageText.trim().toUpperCase();
+
+        if (respuesta !== 'SI' && respuesta !== 'NO') {
+          await sendWhatsAppMessage(from, '❌ Responde *SI* para confirmar o *NO* para cancelar');
+          return;
+        }
+
+        if (respuesta === 'NO') {
+          pcompletarFlowStates.delete(from);
+          await sendWhatsAppMessage(from, '❌ Operación cancelada');
+          return;
+        }
+
+        // Completar orden
+        const result = await completarOrdenProveedor(state.orderCode);
+        pcompletarFlowStates.delete(from);
+
+        // Enviar plantilla al proveedor
+        try {
+          await sendWhatsAppTemplate(
+            result.supplierPhone,
+            'orden_proveedor_completada',
+            [
+              result.supplierName,
+              state.orderCode,
+              state.orden.descripcion_trabajo,
+              parseFloat(result.orden.valor_total).toLocaleString(),
+              formatDate(result.orden.fecha_completado)
+            ]
+          );
+        } catch (error) {
+          console.error('Error enviando plantilla de completado:', error);
+        }
+
+        await sendWhatsAppMessage(from, `✅ *ORDEN COMPLETADA*\n\n📦 Orden: ${state.orderCode}\n👷 Proveedor: ${result.supplierName}\n💰 Total pagado: $${parseFloat(result.orden.valor_total).toLocaleString()}\n\n✉️ Se ha notificado al proveedor`);
+        return;
+      }
+    }
+
+    // Comando: /pcancelar - Cancelar orden de proveedor
+    if (messageText === '/pcancelar') {
+      pcancelarFlowStates.set(from, { step: 'waiting_code' });
+      await sendWhatsAppMessage(from, '❌ *CANCELAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n_Ejemplo: PROV-2026-0001_');
+      return;
+    }
+
+    // Flujo de /pcancelar
+    if (pcancelarFlowStates.has(from)) {
+      const state = pcancelarFlowStates.get(from);
+
+      if (state.step === 'waiting_code') {
+        const orderCode = messageText.trim().toUpperCase();
+        const orden = await findSupplierOrderByCode(orderCode);
+
+        if (!orden) {
+          await sendWhatsAppMessage(from, orderNotFound(orderCode));
+          return;
+        }
+
+        if (orden.cancelado) {
+          pcancelarFlowStates.delete(from);
+          await sendWhatsAppMessage(from, '❌ Esta orden ya está cancelada');
+          return;
+        }
+
+        if (orden.completado) {
+          pcancelarFlowStates.delete(from);
+          await sendWhatsAppMessage(from, '❌ No se puede cancelar una orden completada');
+          return;
+        }
+
+        state.step = 'waiting_confirmation';
+        state.orderCode = orderCode;
+        state.orden = orden;
+        pcancelarFlowStates.set(from, state);
+
+        const resumen = `📋 *CONFIRMAR CANCELACIÓN*\n\n` +
+          `📦 Orden: ${orderCode}\n` +
+          `👷 Proveedor: ${orden.supplier_name}\n` +
+          `🛠️ Trabajo: ${orden.descripcion_trabajo}\n` +
+          `💰 Valor total: $${parseFloat(orden.valor_total).toLocaleString()}\n` +
+          `💵 Abonado: $${parseFloat(orden.valor_abonado).toLocaleString()}\n\n` +
+          `¿Confirmas CANCELAR esta orden?\n\nResponde *SI* o *NO*`;
+
+        await sendWhatsAppMessage(from, resumen);
+        return;
+      }
+
+      if (state.step === 'waiting_confirmation') {
+        const respuesta = messageText.trim().toUpperCase();
+
+        if (respuesta !== 'SI' && respuesta !== 'NO') {
+          await sendWhatsAppMessage(from, '❌ Responde *SI* para confirmar o *NO* para cancelar');
+          return;
+        }
+
+        if (respuesta === 'NO') {
+          pcancelarFlowStates.delete(from);
+          await sendWhatsAppMessage(from, '❌ Operación cancelada');
+          return;
+        }
+
+        // Cancelar orden
+        const result = await cancelarOrdenProveedor(state.orderCode);
+        pcancelarFlowStates.delete(from);
+
+        // Enviar plantilla al proveedor
+        try {
+          await sendWhatsAppTemplate(
+            result.supplierPhone,
+            'orden_proveedor_cancelada',
+            [
+              result.supplierName,
+              state.orderCode,
+              state.orden.descripcion_trabajo,
+              parseFloat(result.orden.valor_abonado).toLocaleString()
+            ]
+          );
+        } catch (error) {
+          console.error('Error enviando plantilla de cancelación:', error);
+        }
+
+        await sendWhatsAppMessage(from, `❌ *ORDEN CANCELADA*\n\n📦 Orden: ${state.orderCode}\n👷 Proveedor: ${result.supplierName}\n💰 Abonado: $${parseFloat(result.orden.valor_abonado).toLocaleString()}\n\n✉️ Se ha notificado al proveedor`);
+        return;
+      }
+    }
+
+    // Comando: /pconsultar - Consultar órdenes de proveedor
+    if (messageText === '/pconsultar') {
+      pconsultarFlowStates.set(from, { step: 'waiting_phone' });
+      await sendWhatsAppMessage(from, '🔍 *CONSULTAR ÓRDENES DE PROVEEDOR*\n\n¿Cuál es el número del proveedor?\n\n_Formato: 10 dígitos (ej: 3204128555)_');
+      return;
+    }
+
+    // Flujo de /pconsultar
+    if (pconsultarFlowStates.has(from)) {
+      const phone = messageText.replace(/\D/g, '');
+
+      if (phone.length !== 10) {
+        await sendWhatsAppMessage(from, '❌ El número debe tener exactamente 10 dígitos.\n\n_Ejemplo: 3204128555_\n\nIntenta nuevamente:');
+        return;
+      }
+
+      const supplier = await findSupplierByPhone(phone);
+
+      if (!supplier) {
+        pconsultarFlowStates.delete(from);
+        await sendWhatsAppMessage(from, supplierNotFound(phone));
+        return;
+      }
+
+      const orders = await getSupplierOrders(supplier.id);
+      const summary = await getSupplierFinancialSummary(supplier.id);
+
+      pconsultarFlowStates.delete(from);
+
+      const mensaje = formatSupplierConsultation(supplier, orders, summary);
+      await sendWhatsAppMessage(from, mensaje);
+      return;
     }
 
     // =====================================================
