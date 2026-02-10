@@ -1,4 +1,5 @@
-import pool from './init.js';
+import { pool } from "./init.js";
+
 
 /**
  * Cancelar una orden de proveedor

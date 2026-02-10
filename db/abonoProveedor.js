@@ -1,4 +1,5 @@
-import pool from './init.js';
+import { pool } from "./init.js";
+
 
 /**
  * Registrar un abono a una orden de proveedor

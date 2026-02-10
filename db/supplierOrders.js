@@ -1,4 +1,5 @@
-import pool from './init.js';
+import { pool } from "./init.js";
+
 
 /**
  * Generar código de orden para proveedor (PROV-2026-0001)
