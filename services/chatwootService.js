@@ -216,6 +216,9 @@ async function getTotalGastadoHistorico(phone) {
 
 export async function sincronizarEtiquetasCliente(phone) {
     // 🔒 Prevenir sincronizaciones simultáneas
+    console.log(`🔥🔥🔥 SINCRONIZACIÓN INICIADA PARA: ${phone}`);
+    console.log(`🔥🔥🔥 Stack completo:`);
+    console.trace();
     if (syncLocks.has(phone)) {
         console.log(`⏳ Ya hay una sincronización en proceso para ${phone}, esperando...`);
         await syncLocks.get(phone);
