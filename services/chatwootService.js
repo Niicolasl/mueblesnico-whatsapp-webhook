@@ -165,13 +165,13 @@ async function asignarAgente(conversationId, agentId) {
 // ===============================
 
 async function getPedidosActivosByPhone(phone) {
-    const phoneNormalizado = normalizarTelefono(phone);  // 🔥 Usar helper
+    const phoneNormalizado = normalizarTelefono(phone);
 
     const result = await pool.query(
         `SELECT * FROM orders 
          WHERE numero_whatsapp = $1 
          AND cancelado = false 
-         AND UPPER(estado_pedido) != 'ENTREGADO'
+         AND fue_entregado = false 
          ORDER BY fecha_creacion DESC`,
         [phoneNormalizado]
     );
