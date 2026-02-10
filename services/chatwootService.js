@@ -213,7 +213,9 @@ async function getTotalGastadoHistorico(phone) {
 
 export async function sincronizarEtiquetasCliente(phone) {
     try {
-        console.log(`🏷️ Sincronizando etiquetas para ${phone}...`);
+        // 🔍 LOG ADICIONAL PARA DETECTAR DUPLICADOS
+        console.log(`🏷️ [${new Date().toISOString()}] Sincronizando etiquetas para ${phone}...`);
+        console.trace('📍 Llamada desde:'); 
 
         const pedidosActivos = await getPedidosActivosByPhone(phone);
         const pedidosConDeuda = await getPedidosConDeuda(phone);
