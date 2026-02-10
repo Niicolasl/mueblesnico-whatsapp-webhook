@@ -234,7 +234,19 @@ export async function sincronizarEtiquetasCliente(phone) {
         }
 
         // ========================================
-        // ETIQUETAS DE PRODUCCIÓN (pedidos activos)
+        // CASO 2: SIN PEDIDOS ACTIVOS PERO CON DEUDA
+        // → Todo entregado pero debe dinero
+        // ========================================
+        if (pedidosActivos.length === 0 && pedidosConDeuda.length > 0) {
+            etiquetas.push("entregado");
+            etiquetas.push("pago_pendiente");
+            await reemplazarEtiquetas(phone, etiquetas);
+            console.log(`✅ Etiquetas sincronizadas: [${etiquetas.join(", ")}]`);
+            return;
+        }
+
+        // ========================================
+        // CASO 3: TIENE PEDIDOS ACTIVOS
         // ========================================
         if (pedidosActivos.length > 0) {
             const tienePendienteAnticipo = pedidosActivos.some(p =>
@@ -250,40 +262,21 @@ export async function sincronizarEtiquetasCliente(phone) {
                 p.estado_pedido === "LISTO"
             );
 
-            const tienePagado = pedidosActivos.some(p =>
-                p.estado_pedido === "PAGADO"
-            );
-
-            // 🔥 PRIORIDAD DE ETIQUETAS DE ESTADO
+            // ETIQUETAS DE ESTADO DE PRODUCCIÓN
             if (tieneListo) {
                 etiquetas.push("listo");
-            } else if (tienePagado) {
-                // Solo agregar si NO está listo (para evitar duplicados)
-                // No agregamos nada aquí, el estado "pagado" se maneja abajo
             } else if (tieneEnFabricacion) {
                 etiquetas.push("en_fabricacion");
             } else if (tienePendienteAnticipo) {
                 etiquetas.push("pendiente_anticipo");
             }
-        }
 
-        // ========================================
-        // ETIQUETAS DE PAGO (SIEMPRE AL FINAL)
-        // ========================================
-        if (pedidosConDeuda.length > 0) {
-            etiquetas.push("pago_pendiente");
-        } else if (pedidosActivos.length > 0) {
-            // Solo si tiene pedidos activos y todos están pagados
-            etiquetas.push("pagado");
-        }
-
-        // ========================================
-        // ETIQUETA DE ENTREGA
-        // ========================================
-        // Si no tiene pedidos activos pero SÍ tiene deuda
-        // significa que todo está entregado pero debe dinero
-        if (pedidosActivos.length === 0 && pedidosConDeuda.length > 0) {
-            etiquetas.push("entregado");
+            // ETIQUETAS DE PAGO
+            if (pedidosConDeuda.length > 0) {
+                etiquetas.push("pago_pendiente");
+            } else {
+                etiquetas.push("pagado");
+            }
         }
 
         await reemplazarEtiquetas(phone, etiquetas);
@@ -293,6 +286,7 @@ export async function sincronizarEtiquetasCliente(phone) {
         console.error(`⚠️ Error sincronizando etiquetas:`, err.message);
     }
 }
+
 async function reemplazarEtiquetas(phone, labelNames) {
     try {
         const e164 = toE164(phone);
