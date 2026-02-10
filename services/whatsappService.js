@@ -384,8 +384,8 @@ export const handleMessage = async (req, res) => {
 
           // 🏷️ SINCRONIZAR CHATWOOT
           try {
-            await sincronizarEtiquetasCliente(result.numero_whatsapp);
-            await actualizarAtributosCliente(result.numero_whatsapp);
+            await new Promise(resolve => setTimeout(resolve, 300));
+            await actualizarAtributosCliente(pedido.numero_whatsapp);
           } catch (err) {
             console.error("⚠️ Error sincronizando Chatwoot:", err.message);
           }
@@ -513,8 +513,6 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
 
-      delete adminState[from];
-
       // ✅ CONFIRMACIÓN AL ADMIN
       await enviar(from, {
         text: {
@@ -531,25 +529,13 @@ export const handleMessage = async (req, res) => {
 
       // 🏷️ SINCRONIZAR CHATWOOT
       try {
-        await sincronizarEtiquetasCliente(pedidoActualizado.numero_whatsapp);
-        await actualizarAtributosCliente(pedidoActualizado.numero_whatsapp);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await actualizarAtributosCliente(pedido.numero_whatsapp);
       } catch (err) {
         console.error("⚠️ Error sincronizando Chatwoot:", err.message);
       }
 
       delete adminState[from];
-
-      // ✅ CONFIRMACIÓN ADMIN
-      await enviar(from, {
-        text: {
-          body:
-            `✅ *Estado actualizado*\n\n` +
-            `📦 Pedido: ${pedido.order_code}\n` +
-            `🛠️ Trabajo: ${pedido.descripcion_trabajo}\n` +
-            `📌 Nuevo estado: ${nuevoEstado.replace("_", " ")}`,
-        },
-      });
-
       return res.sendStatus(200);
     }
 
@@ -762,9 +748,11 @@ export const handleMessage = async (req, res) => {
         });
       }
 
+
       // 🏷️ SINCRONIZAR CHATWOOT
       try {
-        await sincronizarEtiquetasCliente(result.numero_whatsapp);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
         await actualizarAtributosCliente(result.numero_whatsapp);
       } catch (err) {
         console.error("⚠️ Error sincronizando Chatwoot:", err.message);
