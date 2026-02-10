@@ -385,6 +385,7 @@ export const handleMessage = async (req, res) => {
           // 🏷️ SINCRONIZAR CHATWOOT
           try {
             await actualizarAtributosCliente(pedido.numero_whatsapp);
+            await sincronizarEtiquetasCliente(pedido.numero_whatsapp);
           } catch (err) {
             console.error("⚠️ Error sincronizando Chatwoot:", err.message);
           }
@@ -529,6 +530,7 @@ export const handleMessage = async (req, res) => {
       // 🏷️ SINCRONIZAR CHATWOOT
       try {
         await actualizarAtributosCliente(pedido.numero_whatsapp);
+        await sincronizarEtiquetasCliente(pedido.numero_whatsapp);
       } catch (err) {
         console.error("⚠️ Error sincronizando Chatwoot:", err.message);
       }
@@ -749,7 +751,8 @@ export const handleMessage = async (req, res) => {
 
       // 🏷️ SINCRONIZAR CHATWOOT
       try {
-        await actualizarAtributosCliente(result.numero_whatsapp);
+        await actualizarAtributosCliente(pedido.numero_whatsapp);
+        await sincronizarEtiquetasCliente(pedido.numero_whatsapp);
       } catch (err) {
         console.error("⚠️ Error sincronizando Chatwoot:", err.message);
       }

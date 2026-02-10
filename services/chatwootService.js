@@ -437,9 +437,6 @@ export async function actualizarAtributosCliente(phone) {
 
         console.log(`✅ Atributos actualizados correctamente`);
 
-        // 🔥 SINCRONIZAR ETIQUETAS AL FINAL
-        await sincronizarEtiquetasCliente(phone);
-
     } catch (err) {
         console.error(`⚠️ Error actualizando atributos:`, err.message);
     }
