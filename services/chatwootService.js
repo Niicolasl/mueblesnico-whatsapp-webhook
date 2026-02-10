@@ -30,6 +30,9 @@ const LABEL_IDS = {
 export const lastSentMessages = new Set();
 const conversationCache = new Map();
 
+// 🔒 Lock para prevenir sincronizaciones simultáneas
+const syncLocks = new Map();
+
 function toE164(phone) {
     let p = String(phone).replace(/\D/g, "");
     if (p.length === 10 && p.startsWith("3")) p = "57" + p;
@@ -117,7 +120,7 @@ async function getOrCreateConversation(e164, contactId) {
 
             // 🔥 AUTO-ASIGNAR SI NO TIENE AGENTE
             if (!existingConvo.assignee_id) {
-                await asignarAgente(existingConvo.id, 1); // Cambia "1" por el ID del agente que quieras
+                await asignarAgente(existingConvo.id, 1);
             }
 
             return existingConvo.id;
@@ -131,7 +134,7 @@ async function getOrCreateConversation(e164, contactId) {
                 inbox_id: INBOX_ID,
                 contact_id: contactId,
                 status: "open",
-                assignee_id: 1  // 🔥 AUTO-ASIGNAR AL CREAR (Cambia "1" por el ID que quieras)
+                assignee_id: 1
             },
             { headers }
         );
@@ -160,6 +163,7 @@ async function asignarAgente(conversationId, agentId) {
         console.error(`⚠️ Error asignando agente:`, err.response?.data || err.message);
     }
 }
+
 // ===============================
 // 🗄️ CONSULTAS DE BASE DE DATOS
 // ===============================
@@ -179,7 +183,7 @@ async function getPedidosActivosByPhone(phone) {
 }
 
 async function getPedidosConDeuda(phone) {
-    const phoneNormalizado = normalizarTelefono(phone);  // 🔥 Usar helper
+    const phoneNormalizado = normalizarTelefono(phone);
 
     const result = await pool.query(
         `SELECT order_code, descripcion_trabajo, saldo_pendiente, estado_pedido
@@ -210,12 +214,22 @@ async function getTotalGastadoHistorico(phone) {
 // 🏷️ GESTIÓN DE ETIQUETAS
 // ===============================
 
-
 export async function sincronizarEtiquetasCliente(phone) {
+    // 🔒 Prevenir sincronizaciones simultáneas
+    if (syncLocks.has(phone)) {
+        console.log(`⏳ Ya hay una sincronización en proceso para ${phone}, esperando...`);
+        await syncLocks.get(phone);
+        return;
+    }
+
+    // Crear promesa de sincronización
+    let resolveLock;
+    const lockPromise = new Promise(resolve => { resolveLock = resolve; });
+    syncLocks.set(phone, lockPromise);
+
     try {
-        // 🔍 LOG ADICIONAL PARA DETECTAR DUPLICADOS
         console.log(`🏷️ [${new Date().toISOString()}] Sincronizando etiquetas para ${phone}...`);
-        console.trace('📍 Llamada desde:'); 
+        console.trace('📍 Llamada desde:');
 
         const pedidosActivos = await getPedidosActivosByPhone(phone);
         const pedidosConDeuda = await getPedidosConDeuda(phone);
@@ -226,7 +240,6 @@ export async function sincronizarEtiquetasCliente(phone) {
 
         // ========================================
         // CASO 1: SIN PEDIDOS ACTIVOS Y SIN DEUDA
-        // → Cliente con todo entregado y pagado → SIN ETIQUETAS
         // ========================================
         if (pedidosActivos.length === 0 && pedidosConDeuda.length === 0) {
             console.log(`✨ Cliente sin pedidos activos ni deudas → Sin etiquetas`);
@@ -237,7 +250,6 @@ export async function sincronizarEtiquetasCliente(phone) {
 
         // ========================================
         // CASO 2: SIN PEDIDOS ACTIVOS PERO CON DEUDA
-        // → Todo entregado pero debe dinero
         // ========================================
         if (pedidosActivos.length === 0 && pedidosConDeuda.length > 0) {
             etiquetas.push("entregado");
@@ -286,6 +298,10 @@ export async function sincronizarEtiquetasCliente(phone) {
 
     } catch (err) {
         console.error(`⚠️ Error sincronizando etiquetas:`, err.message);
+    } finally {
+        // 🔓 Liberar lock
+        syncLocks.delete(phone);
+        resolveLock();
     }
 }
 
@@ -317,7 +333,7 @@ async function reemplazarEtiquetas(phone, labelNames) {
                     { labels: [labelName] },
                     {
                         headers,
-                        params: { remove: true }  // Parámetro para eliminar
+                        params: { remove: true }
                     }
                 );
                 console.log(`🗑️ Etiqueta eliminada: ${labelName}`);
@@ -344,6 +360,7 @@ async function reemplazarEtiquetas(phone, labelNames) {
         console.error(`⚠️ Datos:`, err.response?.data);
     }
 }
+
 // ===============================
 // 📊 GESTIÓN DE ATRIBUTOS
 // ===============================
@@ -419,6 +436,8 @@ export async function actualizarAtributosCliente(phone) {
         }
 
         console.log(`✅ Atributos actualizados correctamente`);
+
+        // 🔥 SINCRONIZAR ETIQUETAS AL FINAL
         await sincronizarEtiquetasCliente(phone);
 
     } catch (err) {
@@ -464,7 +483,7 @@ async function actualizarAtributosConversacion(phone, attributes) {
 }
 
 // ===============================
-// 📥 FORWARD MENSAJES (SIN CAMBIOS)
+// 📥 FORWARD MENSAJES
 // ===============================
 
 export async function forwardToChatwoot(phone, name, messageObject) {
