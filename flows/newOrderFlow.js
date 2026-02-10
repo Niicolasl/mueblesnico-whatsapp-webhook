@@ -190,7 +190,7 @@ export async function handleNewOrderStep(admin, message) {
 
                 // 🏷️ SINCRONIZAR CHATWOOT
                 try {
-                    await sincronizarEtiquetasCliente(order.numero_whatsapp);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                     await actualizarAtributosCliente(order.numero_whatsapp);
                     console.log(`✅ Chatwoot sincronizado para pedido ${order.order_code}`);
                 } catch (err) {
