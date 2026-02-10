@@ -40,19 +40,37 @@ import {
 import { sendMessage } from "./whatsappSender.js";
 import { normalizarTelefono, telefonoParaWhatsApp } from "../utils/phone.js";
 
-const { startSupplierOrderFlow, processSupplierOrderFlow, hasActiveFlow: hasSupplierFlow, cancelFlow: cancelSupplierFlow } = require('../flows/newSupplierOrderFlow');
-const { findSupplierByPhone } = require('../db/suppliers');
-const { findSupplierOrderByCode, getSupplierOrders, getSupplierFinancialSummary } = require('../db/supplierOrders');
-const { registrarAbonoProveedor } = require('../db/abonoProveedor');
-const { completarOrdenProveedor } = require('../db/completarOrdenProveedor');
-const { cancelarOrdenProveedor } = require('../db/cancelarOrdenProveedor');
-const { formatSupplierConsultation, orderNotFound, supplierNotFound, formatDate } = require('../utils/supplierTemplates');
-const { sendWhatsAppTemplate } = require('./whatsappSender');
+import {
+  startSupplierOrderFlow,
+  processSupplierOrderFlow,
+  hasActiveFlow as hasSupplierFlow,
+  cancelFlow as cancelSupplierFlow
+} from '../flows/newSupplierOrderFlow.js';
 
+import { findSupplierByPhone } from '../db/suppliers.js';
+import {
+  findSupplierOrderByCode,
+  getSupplierOrders,
+  getSupplierFinancialSummary
+} from '../db/supplierOrders.js';
+import { registrarAbonoProveedor } from '../db/abonoProveedor.js';
+import { completarOrdenProveedor } from '../db/completarOrdenProveedor.js';
+import { cancelarOrdenProveedor } from '../db/cancelarOrdenProveedor.js';
+import {
+  formatSupplierConsultation,
+  orderNotFound,
+  supplierNotFound,
+  formatDate
+} from '../utils/supplierTemplates.js';
+import { sendWhatsAppTemplate } from './whatsappSender.js';
+
+// 2. AGREGAR ESTOS ESTADOS GLOBALES (junto a los otros flowStates):
 const pabonoFlowStates = new Map();
 const pcompletarFlowStates = new Map();
 const pcancelarFlowStates = new Map();
 const pconsultarFlowStates = new Map();
+
+
 const ADMINS = ["3204128555", "3125906313"];
 const adminState = {};
 
@@ -276,6 +294,9 @@ export const handleMessage = async (req, res) => {
       return res.sendStatus(200);
     }
 
+    // ============== COMANDOS DE PROVEEDORES ==============
+
+    // Comando: /pnuevo - Crear orden a proveedor
     if (messageText === '/pnuevo') {
       const response = startSupplierOrderFlow(from);
       await sendWhatsAppMessage(from, response);
