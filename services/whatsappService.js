@@ -294,37 +294,33 @@ export const handleMessage = async (req, res) => {
 
     // ============== COMANDOS DE PROVEEDORES ==============
 
-    // Comando: /pnuevo - Crear orden a proveedor
-    if (inputLower === '/pnuevo') {
-      const response = startSupplierOrderFlow(from);
-      await sendWhatsAppMessage(from, response);
-      return;
-    }
+    // 🔴 PRIORIDAD 1: Verificar flujos activos ANTES de permitir nuevos comandos
 
-    // Procesar flujo activo de /pnuevo
+    // Flujo activo de /pnuevo
     if (hasSupplierFlow(from)) {
-      if (inputLower.toLowerCase() === 'cancelar') {
+      // Opción de cancelar con /no
+      if (inputLower === 'cancelar' || inputLower === '/no') {
         const response = cancelSupplierFlow(from);
         await sendWhatsAppMessage(from, response);
-        return;
+        return res.sendStatus(200);
       }
 
       const response = await processSupplierOrderFlow(from, inputLower);
       if (response) {
         await sendWhatsAppMessage(from, response);
-        return;
+        return res.sendStatus(200);
       }
     }
 
-    // Comando: /pabono - Registrar abono a proveedor
-    if (inputLower === '/pabono') {
-      pabonoFlowStates.set(from, { step: 'waiting_code' });
-      await sendWhatsAppMessage(from, '💵 *REGISTRAR ABONO A PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n_Ejemplo: PROV-2026-0001_');
-      return;
-    }
-
-    // Flujo de /pabono
+    // Flujo activo de /pabono
     if (pabonoFlowStates.has(from)) {
+      // Opción de cancelar
+      if (inputLower === '/no' || inputLower === 'cancelar') {
+        pabonoFlowStates.delete(from);
+        await sendWhatsAppMessage(from, '❌ Registro de abono cancelado');
+        return res.sendStatus(200);
+      }
+
       const state = pabonoFlowStates.get(from);
 
       if (state.step === 'waiting_code') {
@@ -333,19 +329,19 @@ export const handleMessage = async (req, res) => {
 
         if (!orden) {
           await sendWhatsAppMessage(from, orderNotFound(orderCode));
-          return;
+          return res.sendStatus(200);
         }
 
         if (orden.cancelado) {
           pabonoFlowStates.delete(from);
           await sendWhatsAppMessage(from, '❌ No se puede abonar a una orden cancelada');
-          return;
+          return res.sendStatus(200);
         }
 
         if (orden.completado) {
           pabonoFlowStates.delete(from);
           await sendWhatsAppMessage(from, '❌ Esta orden ya está completada');
-          return;
+          return res.sendStatus(200);
         }
 
         state.step = 'waiting_amount';
@@ -362,7 +358,7 @@ export const handleMessage = async (req, res) => {
           `¿Cuánto vas a abonar?\n\n_Solo números (ej: 50000)_`;
 
         await sendWhatsAppMessage(from, mensaje);
-        return;
+        return res.sendStatus(200);
       }
 
       if (state.step === 'waiting_amount') {
@@ -370,12 +366,12 @@ export const handleMessage = async (req, res) => {
 
         if (isNaN(monto) || monto <= 0) {
           await sendWhatsAppMessage(from, '❌ Debe ser un valor numérico mayor a cero.\n\n_Ejemplo: 50000_\n\nIntenta nuevamente:');
-          return;
+          return res.sendStatus(200);
         }
 
         if (monto > parseFloat(state.orden.saldo_pendiente)) {
           await sendWhatsAppMessage(from, `❌ El abono ($${monto.toLocaleString()}) excede el saldo pendiente ($${parseFloat(state.orden.saldo_pendiente).toLocaleString()})`);
-          return;
+          return res.sendStatus(200);
         }
 
         state.step = 'waiting_confirmation';
@@ -394,7 +390,7 @@ export const handleMessage = async (req, res) => {
           `¿Confirmas el abono?\n\nResponde *SI* o *NO*`;
 
         await sendWhatsAppMessage(from, resumen);
-        return;
+        return res.sendStatus(200);
       }
 
       if (state.step === 'waiting_confirmation') {
@@ -402,13 +398,13 @@ export const handleMessage = async (req, res) => {
 
         if (respuesta !== 'SI' && respuesta !== 'NO') {
           await sendWhatsAppMessage(from, '❌ Responde *SI* para confirmar o *NO* para cancelar');
-          return;
+          return res.sendStatus(200);
         }
 
         if (respuesta === 'NO') {
           pabonoFlowStates.delete(from);
           await sendWhatsAppMessage(from, '❌ Abono cancelado');
-          return;
+          return res.sendStatus(200);
         }
 
         // Registrar abono
@@ -434,19 +430,19 @@ export const handleMessage = async (req, res) => {
         }
 
         await sendWhatsAppMessage(from, `✅ *ABONO REGISTRADO*\n\n📦 Orden: ${state.orderCode}\n💵 Abono: $${result.montoAbono.toLocaleString()}\n📊 Nuevo saldo: $${result.nuevoSaldo.toLocaleString()}\n\n✉️ Se ha notificado al proveedor`);
-        return;
+        return res.sendStatus(200);
       }
     }
 
-    // Comando: /pcompletar - Marcar orden como completada
-    if (inputLower === '/pcompletar') {
-      pcompletarFlowStates.set(from, { step: 'waiting_code' });
-      await sendWhatsAppMessage(from, '✅ *COMPLETAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n_Ejemplo: PROV-2026-0001_');
-      return;
-    }
-
-    // Flujo de /pcompletar
+    // Flujo activo de /pcompletar
     if (pcompletarFlowStates.has(from)) {
+      // Opción de cancelar
+      if (inputLower === '/no' || inputLower === 'cancelar') {
+        pcompletarFlowStates.delete(from);
+        await sendWhatsAppMessage(from, '❌ Operación cancelada');
+        return res.sendStatus(200);
+      }
+
       const state = pcompletarFlowStates.get(from);
 
       if (state.step === 'waiting_code') {
@@ -455,25 +451,25 @@ export const handleMessage = async (req, res) => {
 
         if (!orden) {
           await sendWhatsAppMessage(from, orderNotFound(orderCode));
-          return;
+          return res.sendStatus(200);
         }
 
         if (orden.cancelado) {
           pcompletarFlowStates.delete(from);
           await sendWhatsAppMessage(from, '❌ No se puede completar una orden cancelada');
-          return;
+          return res.sendStatus(200);
         }
 
         if (orden.completado) {
           pcompletarFlowStates.delete(from);
           await sendWhatsAppMessage(from, '❌ Esta orden ya está completada');
-          return;
+          return res.sendStatus(200);
         }
 
         if (parseFloat(orden.saldo_pendiente) > 0) {
           pcompletarFlowStates.delete(from);
           await sendWhatsAppMessage(from, `❌ No se puede completar. Aún hay un saldo pendiente de $${parseFloat(orden.saldo_pendiente).toLocaleString()}\n\nDebes registrar el pago completo antes de marcar como completado.`);
-          return;
+          return res.sendStatus(200);
         }
 
         state.step = 'waiting_confirmation';
@@ -490,7 +486,7 @@ export const handleMessage = async (req, res) => {
           `¿Confirmas marcar como COMPLETADO?\n\nResponde *SI* o *NO*`;
 
         await sendWhatsAppMessage(from, resumen);
-        return;
+        return res.sendStatus(200);
       }
 
       if (state.step === 'waiting_confirmation') {
@@ -498,13 +494,13 @@ export const handleMessage = async (req, res) => {
 
         if (respuesta !== 'SI' && respuesta !== 'NO') {
           await sendWhatsAppMessage(from, '❌ Responde *SI* para confirmar o *NO* para cancelar');
-          return;
+          return res.sendStatus(200);
         }
 
         if (respuesta === 'NO') {
           pcompletarFlowStates.delete(from);
           await sendWhatsAppMessage(from, '❌ Operación cancelada');
-          return;
+          return res.sendStatus(200);
         }
 
         // Completar orden
@@ -529,19 +525,19 @@ export const handleMessage = async (req, res) => {
         }
 
         await sendWhatsAppMessage(from, `✅ *ORDEN COMPLETADA*\n\n📦 Orden: ${state.orderCode}\n👷 Proveedor: ${result.supplierName}\n💰 Total pagado: $${parseFloat(result.orden.valor_total).toLocaleString()}\n\n✉️ Se ha notificado al proveedor`);
-        return;
+        return res.sendStatus(200);
       }
     }
 
-    // Comando: /pcancelar - Cancelar orden de proveedor
-    if (inputLower === '/pcancelar') {
-      pcancelarFlowStates.set(from, { step: 'waiting_code' });
-      await sendWhatsAppMessage(from, '❌ *CANCELAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n_Ejemplo: PROV-2026-0001_');
-      return;
-    }
-
-    // Flujo de /pcancelar
+    // Flujo activo de /pcancelar
     if (pcancelarFlowStates.has(from)) {
+      // Opción de cancelar
+      if (inputLower === '/no' || inputLower === 'cancelar') {
+        pcancelarFlowStates.delete(from);
+        await sendWhatsAppMessage(from, '❌ Operación cancelada');
+        return res.sendStatus(200);
+      }
+
       const state = pcancelarFlowStates.get(from);
 
       if (state.step === 'waiting_code') {
@@ -550,19 +546,19 @@ export const handleMessage = async (req, res) => {
 
         if (!orden) {
           await sendWhatsAppMessage(from, orderNotFound(orderCode));
-          return;
+          return res.sendStatus(200);
         }
 
         if (orden.cancelado) {
           pcancelarFlowStates.delete(from);
           await sendWhatsAppMessage(from, '❌ Esta orden ya está cancelada');
-          return;
+          return res.sendStatus(200);
         }
 
         if (orden.completado) {
           pcancelarFlowStates.delete(from);
           await sendWhatsAppMessage(from, '❌ No se puede cancelar una orden completada');
-          return;
+          return res.sendStatus(200);
         }
 
         state.step = 'waiting_confirmation';
@@ -579,7 +575,7 @@ export const handleMessage = async (req, res) => {
           `¿Confirmas CANCELAR esta orden?\n\nResponde *SI* o *NO*`;
 
         await sendWhatsAppMessage(from, resumen);
-        return;
+        return res.sendStatus(200);
       }
 
       if (state.step === 'waiting_confirmation') {
@@ -587,13 +583,13 @@ export const handleMessage = async (req, res) => {
 
         if (respuesta !== 'SI' && respuesta !== 'NO') {
           await sendWhatsAppMessage(from, '❌ Responde *SI* para confirmar o *NO* para cancelar');
-          return;
+          return res.sendStatus(200);
         }
 
         if (respuesta === 'NO') {
           pcancelarFlowStates.delete(from);
           await sendWhatsAppMessage(from, '❌ Operación cancelada');
-          return;
+          return res.sendStatus(200);
         }
 
         // Cancelar orden
@@ -617,24 +613,24 @@ export const handleMessage = async (req, res) => {
         }
 
         await sendWhatsAppMessage(from, `❌ *ORDEN CANCELADA*\n\n📦 Orden: ${state.orderCode}\n👷 Proveedor: ${result.supplierName}\n💰 Abonado: $${parseFloat(result.orden.valor_abonado).toLocaleString()}\n\n✉️ Se ha notificado al proveedor`);
-        return;
+        return res.sendStatus(200);
       }
     }
 
-    // Comando: /pconsultar - Consultar órdenes de proveedor
-    if (inputLower === '/pconsultar') {
-      pconsultarFlowStates.set(from, { step: 'waiting_phone' });
-      await sendWhatsAppMessage(from, '🔍 *CONSULTAR ÓRDENES DE PROVEEDOR*\n\n¿Cuál es el número del proveedor?\n\n_Formato: 10 dígitos (ej: 3204128555)_');
-      return;
-    }
-
-    // Flujo de /pconsultar
+    // Flujo activo de /pconsultar
     if (pconsultarFlowStates.has(from)) {
+      // Opción de cancelar
+      if (inputLower === '/no' || inputLower === 'cancelar') {
+        pconsultarFlowStates.delete(from);
+        await sendWhatsAppMessage(from, '❌ Consulta cancelada');
+        return res.sendStatus(200);
+      }
+
       const phone = inputLower.replace(/\D/g, '');
 
       if (phone.length !== 10) {
         await sendWhatsAppMessage(from, '❌ El número debe tener exactamente 10 dígitos.\n\n_Ejemplo: 3204128555_\n\nIntenta nuevamente:');
-        return;
+        return res.sendStatus(200);
       }
 
       const supplier = await findSupplierByPhone(phone);
@@ -642,7 +638,7 @@ export const handleMessage = async (req, res) => {
       if (!supplier) {
         pconsultarFlowStates.delete(from);
         await sendWhatsAppMessage(from, supplierNotFound(phone));
-        return;
+        return res.sendStatus(200);
       }
 
       const orders = await getSupplierOrders(supplier.id);
@@ -652,9 +648,47 @@ export const handleMessage = async (req, res) => {
 
       const mensaje = formatSupplierConsultation(supplier, orders, summary);
       await sendWhatsAppMessage(from, mensaje);
-      return;
+      return res.sendStatus(200);
     }
 
+    // 🔴 PRIORIDAD 2: Permitir iniciar nuevos comandos SOLO si no hay flujos activos
+
+    // Comando: /pnuevo - Crear orden a proveedor
+    if (inputLower === '/pnuevo') {
+      const response = startSupplierOrderFlow(from);
+      await sendWhatsAppMessage(from, response);
+      return res.sendStatus(200);
+    }
+
+    // Comando: /pabono - Registrar abono a proveedor
+    if (inputLower === '/pabono') {
+      pabonoFlowStates.set(from, { step: 'waiting_code' });
+      await sendWhatsAppMessage(from, '💵 *REGISTRAR ABONO A PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n_Ejemplo: PROV-2026-0001_\n\n_Escribe /no para cancelar_');
+      return res.sendStatus(200);
+    }
+
+    // Comando: /pcompletar - Marcar orden como completada
+    if (inputLower === '/pcompletar') {
+      pcompletarFlowStates.set(from, { step: 'waiting_code' });
+      await sendWhatsAppMessage(from, '✅ *COMPLETAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n_Ejemplo: PROV-2026-0001_\n\n_Escribe /no para cancelar_');
+      return res.sendStatus(200);
+    }
+
+    // Comando: /pcancelar - Cancelar orden de proveedor
+    if (inputLower === '/pcancelar') {
+      pcancelarFlowStates.set(from, { step: 'waiting_code' });
+      await sendWhatsAppMessage(from, '❌ *CANCELAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n_Ejemplo: PROV-2026-0001_\n\n_Escribe /no para cancelar_');
+      return res.sendStatus(200);
+    }
+
+    // Comando: /pconsultar - Consultar órdenes de proveedor
+    if (inputLower === '/pconsultar') {
+      pconsultarFlowStates.set(from, { step: 'waiting_phone' });
+      await sendWhatsAppMessage(from, '🔍 *CONSULTAR ÓRDENES DE PROVEEDOR*\n\n¿Cuál es el número del proveedor?\n\n_Formato: 10 dígitos (ej: 3204128555)_\n\n_Escribe /no para cancelar_');
+      return res.sendStatus(200);
+    }
+
+    // ============== FIN COMANDOS DE PROVEEDORES ==============
     // =====================================================
     // 🟦 MENU
     // =====================================================
