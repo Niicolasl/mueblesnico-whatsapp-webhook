@@ -11,7 +11,7 @@ const TEMPLATES = {
     // Plantilla para clientes: pedido creado
     pedido_creado: {
         name: 'pedido_creado',
-        language: 'es',
+        language: { code: 'es' },
         components: [
             {
                 type: 'body',
@@ -28,7 +28,7 @@ const TEMPLATES = {
     // Plantilla para clientes: abono registrado (con saldo pendiente)
     abono_registrado: {
         name: 'abono_registrado',
-        language: 'es',
+        language: { code: 'es' },
         components: [
             {
                 type: 'body',
@@ -46,7 +46,7 @@ const TEMPLATES = {
     // Plantilla para clientes: pago total completado
     abono_total_pagado: {
         name: 'abono_total_pagado',
-        language: 'es',
+        language: { code: 'es' },
         components: [
             {
                 type: 'body',
@@ -63,7 +63,7 @@ const TEMPLATES = {
     // Plantilla para clientes: pedido listo
     pedido_listo: {
         name: 'pedido_listo',
-        language: 'es',
+        language: { code: 'es' },
         components: [
             {
                 type: 'body',
@@ -80,7 +80,7 @@ const TEMPLATES = {
     // Plantilla para clientes: pedido entregado
     pedido_entregado: {
         name: 'pedido_entregado',
-        language: 'es',
+        language: { code: 'es' },
         components: [
             {
                 type: 'body',
@@ -96,7 +96,7 @@ const TEMPLATES = {
     // Plantilla para clientes: pedido cancelado
     pedido_cancelado: {
         name: 'pedido_cancelado',
-        language: 'es',
+        language: { code: 'es' },
         components: [
             {
                 type: 'body',
@@ -117,7 +117,7 @@ const TEMPLATES = {
     // Plantilla para proveedores: orden creada
     orden_proveedor_creada: {
         name: 'orden_proveedor_creada',
-        language: 'es',
+        language: { code: 'es' },
         components: [
             {
                 type: 'body',
@@ -134,7 +134,7 @@ const TEMPLATES = {
     // Plantilla para proveedores: abono registrado
     abono_proveedor_registrado: {
         name: 'abono_proveedor_registrado',
-        language: 'es',
+        language: { code: 'es' },
         components: [
             {
                 type: 'body',
@@ -153,7 +153,7 @@ const TEMPLATES = {
     // Plantilla para proveedores: orden completada
     orden_proveedor_completada: {
         name: 'orden_proveedor_completada',
-        language: 'es',
+        language: { code: 'es' },
         components: [
             {
                 type: 'body',
@@ -171,7 +171,7 @@ const TEMPLATES = {
     // Plantilla para proveedores: orden cancelada
     orden_proveedor_cancelada: {
         name: 'orden_proveedor_cancelada',
-        language: 'es',
+        language: { code: 'es' },
         components: [
             {
                 type: 'body',
