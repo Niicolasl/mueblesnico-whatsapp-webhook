@@ -36,8 +36,6 @@ import {
   estadoPedidoTemplate,
   infoMediosPago,
 } from "../utils/messageTemplates.js";
-
-import { sendMessage } from "./whatsappSender.js";
 import { normalizarTelefono, telefonoParaWhatsApp } from "../utils/phone.js";
 
 import {
