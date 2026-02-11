@@ -103,3 +103,47 @@ export const sendMessage = async (to, payload) => {
     return null;
   }
 };
+
+// ============================================
+// FUNCIONES WRAPPER PARA COMPATIBILIDAD
+// ============================================
+
+/**
+ * Enviar mensaje de texto simple
+ */
+export async function sendWhatsAppMessage(to, text) {
+  return await sendMessage(to, {
+    type: "text",
+    text: { body: text }
+  });
+}
+
+/**
+ * Enviar plantilla de WhatsApp con parámetros
+ * @param {string} to - Número de teléfono (10 dígitos)
+ * @param {string} templateName - Nombre de la plantilla
+ * @param {Array} parameters - Array de parámetros para la plantilla
+ */
+export async function sendWhatsAppTemplate(to, templateName, parameters = []) {
+  // Asegurar que el número tenga el código de país (57 para Colombia)
+  const phone = to.startsWith('57') ? to : `57${to}`;
+
+  const payload = {
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: "es" },
+      components: [
+        {
+          type: "body",
+          parameters: parameters.map(param => ({
+            type: "text",
+            text: String(param)
+          }))
+        }
+      ]
+    }
+  };
+
+  return await sendMessage(phone, payload);
+}
