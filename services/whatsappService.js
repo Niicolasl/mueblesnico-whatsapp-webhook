@@ -355,17 +355,18 @@ export const handleMessage = async (req, res) => {
           `💰 Valor total: $${parseFloat(orden.valor_total).toLocaleString()}\n` +
           `💵 Abonado: $${parseFloat(orden.valor_abonado).toLocaleString()}\n` +
           `📊 Saldo pendiente: $${parseFloat(orden.saldo_pendiente).toLocaleString()}\n\n` +
-          `¿Cuánto vas a abonar?\n\n_Solo números (ej: 50000)_`;
+          `¿Cuánto vas a abonar?\n\n_Solo números en miles (ej: 50 = $50,000)_`;
 
         await sendWhatsAppMessage(from, mensaje);
         return res.sendStatus(200);
       }
 
       if (state.step === 'waiting_amount') {
-        const monto = parseFloat(inputLower.replace(/\D/g, ''));
+        const base = parseFloat(inputLower.replace(/\D/g, ''));
+        const monto = base * 1000; // 🔥 Multiplica por 1000 automáticamente
 
         if (isNaN(monto) || monto <= 0) {
-          await sendWhatsAppMessage(from, '❌ Debe ser un valor numérico mayor a cero.\n\n_Ejemplo: 50000_\n\nIntenta nuevamente:');
+          await sendWhatsAppMessage(from, '❌ Debe ser un valor numérico mayor a cero.\n\nIntenta nuevamente:');
           return res.sendStatus(200);
         }
 
@@ -375,7 +376,7 @@ export const handleMessage = async (req, res) => {
         }
 
         state.step = 'waiting_confirmation';
-        state.monto = monto*1000;
+        state.monto = monto;
         pabonoFlowStates.set(from, state);
 
         const nuevoAbonado = parseFloat(state.orden.valor_abonado) + monto;
@@ -629,7 +630,7 @@ export const handleMessage = async (req, res) => {
       const phone = inputLower.replace(/\D/g, '');
 
       if (phone.length !== 10) {
-        await sendWhatsAppMessage(from, '❌ El número debe tener exactamente 10 dígitos sin +57.\n\nIntenta nuevamente:');
+        await sendWhatsAppMessage(from, '❌ El número debe tener exactamente 10 dígitos.\n\nIntenta nuevamente:');
         return res.sendStatus(200);
       }
 
@@ -663,28 +664,28 @@ export const handleMessage = async (req, res) => {
     // Comando: /pabono - Registrar abono a proveedor
     if (inputLower === '/pabono') {
       pabonoFlowStates.set(from, { step: 'waiting_code' });
-      await sendWhatsAppMessage(from, '💵 *REGISTRAR ABONO A PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n Ejemplo: PROV-2026-0001_\n\n_Escribe /no para cancelar');
+      await sendWhatsAppMessage(from, '💵 *REGISTRAR ABONO A PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\nEscribe /no para cancelar');
       return res.sendStatus(200);
     }
 
     // Comando: /pcompletar - Marcar orden como completada
     if (inputLower === '/pcompletar') {
       pcompletarFlowStates.set(from, { step: 'waiting_code' });
-      await sendWhatsAppMessage(from, '✅ *COMPLETAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n Ejemplo: PROV-2026-0001_\n\n_Escribe /no para cancelar');
+      await sendWhatsAppMessage(from, '✅ *COMPLETAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\nEscribe /no para cancelar');
       return res.sendStatus(200);
     }
 
     // Comando: /pcancelar - Cancelar orden de proveedor
     if (inputLower === '/pcancelar') {
       pcancelarFlowStates.set(from, { step: 'waiting_code' });
-      await sendWhatsAppMessage(from, '❌ *CANCELAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n Ejemplo: PROV-2026-0001_\n\n_Escribe /no para cancelar');
+      await sendWhatsAppMessage(from, '❌ *CANCELAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\nEscribe /no para cancelar');
       return res.sendStatus(200);
     }
 
     // Comando: /pconsultar - Consultar órdenes de proveedor
     if (inputLower === '/pconsultar') {
       pconsultarFlowStates.set(from, { step: 'waiting_phone' });
-      await sendWhatsAppMessage(from, '🔍 *CONSULTAR ÓRDENES DE PROVEEDOR*\n\n¿Cuál es el número del proveedor?\n\n (ej: 3204128555)_\n\n_Escribe /no para cancelar');
+      await sendWhatsAppMessage(from, '🔍 *CONSULTAR ÓRDENES DE PROVEEDOR*\n\n¿Cuál es el número del proveedor? sin +57\n\n_Escribe /no para cancelar');
       return res.sendStatus(200);
     }
 

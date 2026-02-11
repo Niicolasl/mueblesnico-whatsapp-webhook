@@ -77,7 +77,7 @@ async function handleNameStep(adminPhone, message, state) {
     state.step = FLOW_STEPS.WAITING_PHONE;
     flowStates.set(adminPhone, state);
 
-    return '📱 ¿Cuál es el *número de WhatsApp* del proveedor?\n\n_Formato: 10 dígitos sin +57';
+    return '📱 ¿Cuál es el *número de WhatsApp* del proveedor? sin +57';
 }
 
 /**
@@ -118,13 +118,14 @@ async function handleDescriptionStep(adminPhone, message, state) {
  * Paso 4: Valor total
  */
 async function handleAmountStep(adminPhone, message, state) {
-    const valor = parseFloat(message.replace(/\D/g, ''));
+    const base = parseFloat(message.replace(/\D/g, ''));
+    const valor = base * 1000; 
 
     if (isNaN(valor) || valor <= 0) {
         return '❌ Debe ser un valor numérico mayor a cero.\n\nIntenta nuevamente:';
     }
 
-    state.data.valor = valor*1000;
+    state.data.valor = valor;
     state.step = FLOW_STEPS.WAITING_CONFIRMATION;
     flowStates.set(adminPhone, state);
 
