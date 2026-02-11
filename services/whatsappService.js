@@ -297,7 +297,7 @@ export const handleMessage = async (req, res) => {
     // ============== COMANDOS DE PROVEEDORES ==============
 
     // Comando: /pnuevo - Crear orden a proveedor
-    if (messageText === '/pnuevo') {
+    if (inputLower === '/pnuevo') {
       const response = startSupplierOrderFlow(from);
       await sendWhatsAppMessage(from, response);
       return;
@@ -305,13 +305,13 @@ export const handleMessage = async (req, res) => {
 
     // Procesar flujo activo de /pnuevo
     if (hasSupplierFlow(from)) {
-      if (messageText.toLowerCase() === 'cancelar') {
+      if (inputLower.toLowerCase() === 'cancelar') {
         const response = cancelSupplierFlow(from);
         await sendWhatsAppMessage(from, response);
         return;
       }
 
-      const response = await processSupplierOrderFlow(from, messageText);
+      const response = await processSupplierOrderFlow(from, inputLower);
       if (response) {
         await sendWhatsAppMessage(from, response);
         return;
@@ -319,7 +319,7 @@ export const handleMessage = async (req, res) => {
     }
 
     // Comando: /pabono - Registrar abono a proveedor
-    if (messageText === '/pabono') {
+    if (inputLower === '/pabono') {
       pabonoFlowStates.set(from, { step: 'waiting_code' });
       await sendWhatsAppMessage(from, '💵 *REGISTRAR ABONO A PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n_Ejemplo: PROV-2026-0001_');
       return;
@@ -330,7 +330,7 @@ export const handleMessage = async (req, res) => {
       const state = pabonoFlowStates.get(from);
 
       if (state.step === 'waiting_code') {
-        const orderCode = messageText.trim().toUpperCase();
+        const orderCode = inputLower.trim().toUpperCase();
         const orden = await findSupplierOrderByCode(orderCode);
 
         if (!orden) {
@@ -368,7 +368,7 @@ export const handleMessage = async (req, res) => {
       }
 
       if (state.step === 'waiting_amount') {
-        const monto = parseFloat(messageText.replace(/\D/g, ''));
+        const monto = parseFloat(inputLower.replace(/\D/g, ''));
 
         if (isNaN(monto) || monto <= 0) {
           await sendWhatsAppMessage(from, '❌ Debe ser un valor numérico mayor a cero.\n\n_Ejemplo: 50000_\n\nIntenta nuevamente:');
@@ -400,7 +400,7 @@ export const handleMessage = async (req, res) => {
       }
 
       if (state.step === 'waiting_confirmation') {
-        const respuesta = messageText.trim().toUpperCase();
+        const respuesta = inputLower.trim().toUpperCase();
 
         if (respuesta !== 'SI' && respuesta !== 'NO') {
           await sendWhatsAppMessage(from, '❌ Responde *SI* para confirmar o *NO* para cancelar');
@@ -441,7 +441,7 @@ export const handleMessage = async (req, res) => {
     }
 
     // Comando: /pcompletar - Marcar orden como completada
-    if (messageText === '/pcompletar') {
+    if (inputLower === '/pcompletar') {
       pcompletarFlowStates.set(from, { step: 'waiting_code' });
       await sendWhatsAppMessage(from, '✅ *COMPLETAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n_Ejemplo: PROV-2026-0001_');
       return;
@@ -452,7 +452,7 @@ export const handleMessage = async (req, res) => {
       const state = pcompletarFlowStates.get(from);
 
       if (state.step === 'waiting_code') {
-        const orderCode = messageText.trim().toUpperCase();
+        const orderCode = inputLower.trim().toUpperCase();
         const orden = await findSupplierOrderByCode(orderCode);
 
         if (!orden) {
@@ -496,7 +496,7 @@ export const handleMessage = async (req, res) => {
       }
 
       if (state.step === 'waiting_confirmation') {
-        const respuesta = messageText.trim().toUpperCase();
+        const respuesta = inputLower.trim().toUpperCase();
 
         if (respuesta !== 'SI' && respuesta !== 'NO') {
           await sendWhatsAppMessage(from, '❌ Responde *SI* para confirmar o *NO* para cancelar');
@@ -536,7 +536,7 @@ export const handleMessage = async (req, res) => {
     }
 
     // Comando: /pcancelar - Cancelar orden de proveedor
-    if (messageText === '/pcancelar') {
+    if (inputLower === '/pcancelar') {
       pcancelarFlowStates.set(from, { step: 'waiting_code' });
       await sendWhatsAppMessage(from, '❌ *CANCELAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n_Ejemplo: PROV-2026-0001_');
       return;
@@ -547,7 +547,7 @@ export const handleMessage = async (req, res) => {
       const state = pcancelarFlowStates.get(from);
 
       if (state.step === 'waiting_code') {
-        const orderCode = messageText.trim().toUpperCase();
+        const orderCode = inputLower.trim().toUpperCase();
         const orden = await findSupplierOrderByCode(orderCode);
 
         if (!orden) {
@@ -585,7 +585,7 @@ export const handleMessage = async (req, res) => {
       }
 
       if (state.step === 'waiting_confirmation') {
-        const respuesta = messageText.trim().toUpperCase();
+        const respuesta = inputLower.trim().toUpperCase();
 
         if (respuesta !== 'SI' && respuesta !== 'NO') {
           await sendWhatsAppMessage(from, '❌ Responde *SI* para confirmar o *NO* para cancelar');
@@ -624,7 +624,7 @@ export const handleMessage = async (req, res) => {
     }
 
     // Comando: /pconsultar - Consultar órdenes de proveedor
-    if (messageText === '/pconsultar') {
+    if (inputLower === '/pconsultar') {
       pconsultarFlowStates.set(from, { step: 'waiting_phone' });
       await sendWhatsAppMessage(from, '🔍 *CONSULTAR ÓRDENES DE PROVEEDOR*\n\n¿Cuál es el número del proveedor?\n\n_Formato: 10 dígitos (ej: 3204128555)_');
       return;
@@ -632,7 +632,7 @@ export const handleMessage = async (req, res) => {
 
     // Flujo de /pconsultar
     if (pconsultarFlowStates.has(from)) {
-      const phone = messageText.replace(/\D/g, '');
+      const phone = inputLower.replace(/\D/g, '');
 
       if (phone.length !== 10) {
         await sendWhatsAppMessage(from, '❌ El número debe tener exactamente 10 dígitos.\n\n_Ejemplo: 3204128555_\n\nIntenta nuevamente:');
