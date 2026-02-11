@@ -77,7 +77,7 @@ async function handleNameStep(adminPhone, message, state) {
     state.step = FLOW_STEPS.WAITING_PHONE;
     flowStates.set(adminPhone, state);
 
-    return '📱 ¿Cuál es el *número de WhatsApp* del proveedor?\n\n_Formato: 10 dígitos (ej: 3204128555)_';
+    return '📱 ¿Cuál es el *número de WhatsApp* del proveedor?\n\n_Formato: 10 dígitos sin +57';
 }
 
 /**
@@ -87,14 +87,14 @@ async function handlePhoneStep(adminPhone, message, state) {
     const phone = message.replace(/\D/g, '');
 
     if (phone.length !== 10) {
-        return '❌ El número debe tener exactamente 10 dígitos.\n\n_Ejemplo: 3204128555_\n\nIntenta nuevamente:';
+        return '❌ El número debe tener exactamente 10 dígitos.\n\nIntenta nuevamente:';
     }
 
     state.data.phone = phone;
     state.step = FLOW_STEPS.WAITING_DESCRIPTION;
     flowStates.set(adminPhone, state);
 
-    return '🛠️ Describe el *trabajo* que realizará el proveedor:\n\n_Ejemplo: Pintar 3 sillas de madera color café_';
+    return '🛠️ Describe brevemente el *trabajo* que realizará el proveedor: ';
 }
 
 /**
@@ -111,7 +111,7 @@ async function handleDescriptionStep(adminPhone, message, state) {
     state.step = FLOW_STEPS.WAITING_AMOUNT;
     flowStates.set(adminPhone, state);
 
-    return '💰 ¿Cuál es el *valor total* acordado?\n\n_Solo números (ej: 150000)_';
+    return '💰 ¿Cuál es el *valor total* acordado? ';
 }
 
 /**
@@ -121,10 +121,10 @@ async function handleAmountStep(adminPhone, message, state) {
     const valor = parseFloat(message.replace(/\D/g, ''));
 
     if (isNaN(valor) || valor <= 0) {
-        return '❌ Debe ser un valor numérico mayor a cero.\n\n_Ejemplo: 150000_\n\nIntenta nuevamente:';
+        return '❌ Debe ser un valor numérico mayor a cero.\n\nIntenta nuevamente:';
     }
 
-    state.data.valor = valor;
+    state.data.valor = valor*1000;
     state.step = FLOW_STEPS.WAITING_CONFIRMATION;
     flowStates.set(adminPhone, state);
 

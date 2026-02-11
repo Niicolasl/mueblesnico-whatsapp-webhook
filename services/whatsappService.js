@@ -375,7 +375,7 @@ export const handleMessage = async (req, res) => {
         }
 
         state.step = 'waiting_confirmation';
-        state.monto = monto;
+        state.monto = monto*1000;
         pabonoFlowStates.set(from, state);
 
         const nuevoAbonado = parseFloat(state.orden.valor_abonado) + monto;
@@ -629,7 +629,7 @@ export const handleMessage = async (req, res) => {
       const phone = inputLower.replace(/\D/g, '');
 
       if (phone.length !== 10) {
-        await sendWhatsAppMessage(from, '❌ El número debe tener exactamente 10 dígitos.\n\n_Ejemplo: 3204128555_\n\nIntenta nuevamente:');
+        await sendWhatsAppMessage(from, '❌ El número debe tener exactamente 10 dígitos sin +57.\n\nIntenta nuevamente:');
         return res.sendStatus(200);
       }
 
@@ -663,28 +663,28 @@ export const handleMessage = async (req, res) => {
     // Comando: /pabono - Registrar abono a proveedor
     if (inputLower === '/pabono') {
       pabonoFlowStates.set(from, { step: 'waiting_code' });
-      await sendWhatsAppMessage(from, '💵 *REGISTRAR ABONO A PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n_Ejemplo: PROV-2026-0001_\n\n_Escribe /no para cancelar_');
+      await sendWhatsAppMessage(from, '💵 *REGISTRAR ABONO A PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n Ejemplo: PROV-2026-0001_\n\n_Escribe /no para cancelar');
       return res.sendStatus(200);
     }
 
     // Comando: /pcompletar - Marcar orden como completada
     if (inputLower === '/pcompletar') {
       pcompletarFlowStates.set(from, { step: 'waiting_code' });
-      await sendWhatsAppMessage(from, '✅ *COMPLETAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n_Ejemplo: PROV-2026-0001_\n\n_Escribe /no para cancelar_');
+      await sendWhatsAppMessage(from, '✅ *COMPLETAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n Ejemplo: PROV-2026-0001_\n\n_Escribe /no para cancelar');
       return res.sendStatus(200);
     }
 
     // Comando: /pcancelar - Cancelar orden de proveedor
     if (inputLower === '/pcancelar') {
       pcancelarFlowStates.set(from, { step: 'waiting_code' });
-      await sendWhatsAppMessage(from, '❌ *CANCELAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n_Ejemplo: PROV-2026-0001_\n\n_Escribe /no para cancelar_');
+      await sendWhatsAppMessage(from, '❌ *CANCELAR ORDEN DE PROVEEDOR*\n\n¿Cuál es el código de la orden?\n\n Ejemplo: PROV-2026-0001_\n\n_Escribe /no para cancelar');
       return res.sendStatus(200);
     }
 
     // Comando: /pconsultar - Consultar órdenes de proveedor
     if (inputLower === '/pconsultar') {
       pconsultarFlowStates.set(from, { step: 'waiting_phone' });
-      await sendWhatsAppMessage(from, '🔍 *CONSULTAR ÓRDENES DE PROVEEDOR*\n\n¿Cuál es el número del proveedor?\n\n_Formato: 10 dígitos (ej: 3204128555)_\n\n_Escribe /no para cancelar_');
+      await sendWhatsAppMessage(from, '🔍 *CONSULTAR ÓRDENES DE PROVEEDOR*\n\n¿Cuál es el número del proveedor?\n\n (ej: 3204128555)_\n\n_Escribe /no para cancelar');
       return res.sendStatus(200);
     }
 
