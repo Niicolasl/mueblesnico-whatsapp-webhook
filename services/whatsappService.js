@@ -62,7 +62,7 @@ import {
   supplierNotFound,
   formatDate
 } from '../utils/supplierTemplates.js';
-import { sendWhatsAppTemplate } from './whatsappSender.js';
+import { sendMessage, sendWhatsAppMessage, sendWhatsAppTemplate } from "./whatsappSender.js";
 
 // 2. AGREGAR ESTOS ESTADOS GLOBALES (junto a los otros flowStates):
 const pabonoFlowStates = new Map();
