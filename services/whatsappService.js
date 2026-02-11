@@ -62,6 +62,14 @@ import {
 } from '../utils/supplierTemplates.js';
 import { sendMessage, sendWhatsAppMessage, sendWhatsAppTemplate } from "./whatsappSender.js";
 
+import {
+  crearPlantillaAbonoRegistrado,
+  crearPlantillaAbonoTotalPagado,
+  crearPlantillaPedidoListo,
+  crearPlantillaPedidoEntregado,
+  crearPlantillaPedidoCancelado
+} from "../utils/whatsappTemplates.js";
+
 // 2. AGREGAR ESTOS ESTADOS GLOBALES (junto a los otros flowStates):
 const pabonoFlowStates = new Map();
 const pcompletarFlowStates = new Map();
@@ -127,35 +135,65 @@ async function notificarCambioEstado(pedido, enviar) {
     return;
   }
 
-  let mensaje = null;
   const estado = pedido.estado_pedido.toUpperCase();
   const saludoHora = obtenerSaludoColombia();
+  const telefonoWhatsApp = telefonoParaWhatsApp(pedido.numero_whatsapp);
 
+  // ============================================
+  // ESTADO: LISTO
+  // ============================================
   if (estado === "LISTO") {
-    mensaje =
-      `Hola, ${saludoHora} 😊\n\n` +
-      `Tu pedido ya está listo 🎉\n\n` +
-      `📦 Pedido: ${pedido.order_code}\n` +
-      `🛠️ Trabajo: ${pedido.descripcion_trabajo}\n\n` +
-      `Cuando quieras, escríbeme y coordinamos la entrega.`;
+    try {
+      // Intentar enviar plantilla
+      const plantilla = crearPlantillaPedidoListo(pedido, saludoHora);
+      await enviar(telefonoWhatsApp, plantilla);
+      console.log(`✅ Plantilla "pedido_listo" enviada a ${pedido.numero_whatsapp}`);
+    } catch (error) {
+      console.error("⚠️ Error enviando plantilla pedido_listo, usando texto:", error.message);
+
+      // Fallback: mensaje de texto
+      const mensajeTexto =
+        `Hola, ${saludoHora} 😊\n\n` +
+        `Tu pedido ya está listo 🎉\n\n` +
+        `📦 Pedido: ${pedido.order_code}\n` +
+        `🛠️ Trabajo: ${pedido.descripcion_trabajo}\n\n` +
+        `Cuando quieras, escríbeme y coordinamos la entrega.`;
+
+      await enviar(pedido.numero_whatsapp, {
+        text: { body: mensajeTexto },
+      });
+    }
+    return;
   }
 
+  // ============================================
+  // ESTADO: ENTREGADO
+  // ============================================
   if (estado === "ENTREGADO") {
-    mensaje =
-      `Hola 🙌\n\n` +
-      `Tu pedido fue entregado con éxito ✅\n\n` +
-      `📦 ${formatOrderInline(pedido.order_code, pedido.descripcion_trabajo)}\n\n` +
-      `Gracias por confiar en *Muebles Nico* 🙏\n\n` +
-      `¿Qué te pareció tu experiencia con nosotros?\n` +
-      `Si quieres compartir tu opinión, escríbenos. ` +
-      `Nos ayuda mucho a mejorar 😊`;
+    try {
+      // Intentar enviar plantilla
+      const plantilla = crearPlantillaPedidoEntregado(pedido);
+      await enviar(telefonoWhatsApp, plantilla);
+      console.log(`✅ Plantilla "pedido_entregado" enviada a ${pedido.numero_whatsapp}`);
+    } catch (error) {
+      console.error("⚠️ Error enviando plantilla pedido_entregado, usando texto:", error.message);
+
+      // Fallback: mensaje de texto
+      const mensajeTexto =
+        `Hola 🙌\n\n` +
+        `Tu pedido fue entregado con éxito ✅\n\n` +
+        `📦 ${formatOrderInline(pedido.order_code, pedido.descripcion_trabajo)}\n\n` +
+        `Gracias por confiar en *Muebles Nico* 🙏\n\n` +
+        `¿Qué te pareció tu experiencia con nosotros?\n` +
+        `Si quieres compartir tu opinión, escríbenos. ` +
+        `Nos ayuda mucho a mejorar 😊`;
+
+      await enviar(pedido.numero_whatsapp, {
+        text: { body: mensajeTexto },
+      });
+    }
+    return;
   }
-
-  if (!mensaje) return;
-
-  await enviar(pedido.numero_whatsapp, {
-    text: { body: mensaje },
-  });
 }
 
 // =====================================================
@@ -798,20 +836,31 @@ export const handleMessage = async (req, res) => {
         // ✅ Avisar al CLIENTE automáticamente
         if (result.numero_whatsapp) {
           const saludoHora = obtenerSaludoColombia();
-          await enviar(result.numero_whatsapp, {
-            text: {
-              body:
-                `Hola, ${saludoHora} 😊\n\n` +
-                `Queremos informarte que tu pedido ha sido cancelado.\n\n` +
-                `📦 Pedido: ${result.order_code}\n` +
-                `🛠️ Trabajo: ${result.descripcion_trabajo}\n\n` +
-                "Si tienes alguna duda o deseas retomarlo, escríbenos y con gusto te ayudamos 🤝",
-            },
-          });
+          const telefonoWhatsApp = telefonoParaWhatsApp(result.numero_whatsapp);
 
+          try {
+            // Intentar enviar plantilla
+            const plantilla = crearPlantillaPedidoCancelado(result, saludoHora);
+            await enviar(telefonoWhatsApp, plantilla);
+            console.log(`✅ Plantilla "pedido_cancelado" enviada a ${result.numero_whatsapp}`);
+          } catch (error) {
+            console.error("⚠️ Error enviando plantilla pedido_cancelado, usando texto:", error.message);
+
+            // Fallback: mensaje de texto
+            await enviar(telefonoWhatsApp, { 
+              text: {
+                body:
+                  `Hola, ${saludoHora} 😊\n\n` +
+                  `Queremos informarte que tu pedido ha sido cancelado.\n\n` +
+                  `📦 Pedido: ${result.order_code}\n` +
+                  `🛠️ Trabajo: ${result.descripcion_trabajo}\n\n` +
+                  "Si tienes alguna duda o deseas retomarlo, escríbenos y con gusto te ayudamos 🤝",
+              },
+            });
+          }
           // 🏷️ SINCRONIZAR CHATWOOT
           try {
-            await actualizarAtributosCliente(result.numero_whatsapp); 
+            await actualizarAtributosCliente(result.numero_whatsapp);
             await sincronizarEtiquetasCliente(result.numero_whatsapp);
           } catch (err) {
             console.error("⚠️ Error sincronizando Chatwoot:", err.message);
@@ -956,8 +1005,8 @@ export const handleMessage = async (req, res) => {
 
       // 🏷️ SINCRONIZAR CHATWOOT
       try {
-        await actualizarAtributosCliente(result.numero_whatsapp);  
-        await sincronizarEtiquetasCliente(result.numero_whatsapp);
+        await actualizarAtributosCliente(pedidoActualizado.numero_whatsapp);  
+        await sincronizarEtiquetasCliente(pedidoActualizado.numero_whatsapp);
       } catch (err) {
         console.error("⚠️ Error sincronizando Chatwoot:", err.message);
       }
@@ -1140,41 +1189,59 @@ export const handleMessage = async (req, res) => {
         },
       });
 
-      // ✅ Mensaje al CLIENTE
-      let mensajeCliente;
-      // Guardamos el saldo en una variable para usarla varias veces
+     // ✅ Mensaje al CLIENTE
       const saldoPendiente = Number(result.saldo_pendiente);
+      const telefonoWhatsApp = telefonoParaWhatsApp(result.numero_whatsapp);
 
-      if (saldoPendiente <= 0) {
-        // Caso: Pago TOTAL
-        mensajeCliente =
-          `🎉 *¡Pago completado!*\n\n` +
-          `Tu pedido ya está completamente pagado:\n` +
-          `📦 ${formatOrderInline(result.order_code, result.descripcion_trabajo)}\n\n` +
-          `¡Gracias por confiar en Muebles Nico!`;
-      } else {
-        // Caso: Abono parcial
-        mensajeCliente =
-          `💳 *Hemos recibido tu abono*\n\n` +
-          formatOrderHeader(result.order_code, result.descripcion_trabajo, result.valor_total) +
-          `\n\n` +
-          `Abono recibido: $${valor.toLocaleString()}\n` +
-          `Saldo pendiente: $${saldoPendiente.toLocaleString()}\n\n` +
-          `Gracias por tu pago 🙌`;
-      }
+      try {
+        if (saldoPendiente <= 0) {
+          // Caso: Pago TOTAL - Usar plantilla abono_total_pagado
+          const plantilla = crearPlantillaAbonoTotalPagado(result, valor);
+          await enviar(telefonoWhatsApp, plantilla);
+          console.log(`✅ Plantilla "abono_total_pagado" enviada a ${result.numero_whatsapp}`);
+        } else {
+          // Caso: Abono parcial - Usar plantilla abono_registrado
+          const plantilla = crearPlantillaAbonoRegistrado(result, valor);
+          await enviar(telefonoWhatsApp, plantilla);
+          console.log(`✅ Plantilla "abono_registrado" enviada a ${result.numero_whatsapp}`);
+          
+          // Mensaje adicional solo si hay saldo pendiente
+          await enviar(result.numero_whatsapp, {
+            text: { body: `Puedes escribir *menú* para ver el estado y saldo de tus pedidos` },
+          });
+        }
+      } catch (error) {
+        console.error("⚠️ Error enviando plantilla de abono, usando texto:", error.message);
+        
+        // Fallback: mensaje de texto tradicional
+        let mensajeTexto;
 
-      // 1. Enviamos el recibo (se envía siempre)
-      await enviar(result.numero_whatsapp, {
-        text: { body: mensajeCliente },
-      });
+        if (saldoPendiente <= 0) {
+          mensajeTexto =
+            `🎉 *¡Pago completado!*\n\n` +
+            `Tu pedido ya está completamente pagado:\n` +
+            `📦 ${formatOrderInline(result.order_code, result.descripcion_trabajo)}\n\n` +
+            `¡Gracias por confiar en Muebles Nico!`;
+        } else {
+          mensajeTexto =
+            `💳 *Hemos recibido tu abono*\n\n` +
+            formatOrderHeader(result.order_code, result.descripcion_trabajo, result.valor_total) +
+            `\n\n` +
+            `Abono recibido: $${valor.toLocaleString()}\n` +
+            `Saldo pendiente: $${saldoPendiente.toLocaleString()}\n\n` +
+            `Gracias por tu pago 🙌`;
+        }
 
-      // 2. Enviamos el mensaje del menú SOLO si hay deuda pendiente
-      if (saldoPendiente > 0) {
         await enviar(result.numero_whatsapp, {
-          text: { body: `Puedes escribir *menú* para ver el estado y saldo de tus pedidos` },
+          text: { body: mensajeTexto },
         });
-      }
 
+        if (saldoPendiente > 0) {
+          await enviar(result.numero_whatsapp, {
+            text: { body: `Puedes escribir *menú* para ver el estado y saldo de tus pedidos` },
+          });
+        }
+      }
 
       // 🏷️ SINCRONIZAR CHATWOOT
       try {
