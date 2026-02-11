@@ -1,7 +1,6 @@
 import { getOrCreateSupplier } from '../db/suppliers.js';
 import { createSupplierOrder } from '../db/supplierOrders.js';
 import { sendWhatsAppMessage, sendWhatsAppTemplate } from '../services/whatsappSender.js';
-import { normalizePhoneNumber } from '../utils/phone.js';
 
 // Almacenar estado del flujo por usuario
 const flowStates = new Map();
