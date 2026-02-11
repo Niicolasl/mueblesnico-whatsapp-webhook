@@ -61,8 +61,8 @@ const TEMPLATES = {
     },
 
     // Plantilla para clientes: pedido listo
-    pedido_listo: {
-        name: 'pedido_listo',
+    pedido_listoo: {
+        name: 'pedido_listoo',
         language: { code: 'es' },
         components: [
             {
@@ -270,7 +270,7 @@ export function crearPlantillaPedidoListo(order, saludoHora) {
     return {
         messaging_product: "whatsapp",
         type: "template",
-        template: buildTemplate('pedido_listo', [
+        template: buildTemplate('pedido_listoo', [
             order.nombre_cliente,
             saludoHora,
             order.order_code,

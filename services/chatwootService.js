@@ -33,6 +33,86 @@ const conversationCache = new Map();
 // 🔒 Lock para prevenir sincronizaciones simultáneas
 const syncLocks = new Map();
 
+// ===============================
+// 🛡️ SISTEMA DE SALUD DE CHATWOOT
+// ===============================
+let chatwootHealthy = true;
+let lastHealthCheck = Date.now();
+const HEALTH_CHECK_INTERVAL = 60000; // 1 minuto
+
+/**
+ * Detectar si respuesta es HTML de error (500)
+ */
+function isHTMLErrorResponse(data) {
+    if (typeof data !== 'string') return false;
+    return data.includes('<!DOCTYPE html>') ||
+        data.includes('<title>We\'re sorry') ||
+        data.includes('something went wrong');
+}
+
+/**
+ * Marcar Chatwoot como caído
+ */
+function markChatwootDown() {
+    if (chatwootHealthy) {
+        console.error("🔴 Chatwoot marcado como INACTIVO - Respuestas de error detectadas");
+        chatwootHealthy = false;
+    }
+}
+
+/**
+ * Marcar Chatwoot como activo
+ */
+function markChatwootUp() {
+    const now = Date.now();
+    if (!chatwootHealthy && (now - lastHealthCheck > HEALTH_CHECK_INTERVAL)) {
+        console.log("🟢 Chatwoot marcado como ACTIVO");
+        chatwootHealthy = true;
+        lastHealthCheck = now;
+    }
+}
+
+/**
+ * Verificar si Chatwoot está saludable
+ */
+export function isChatwootHealthy() {
+    return chatwootHealthy;
+}
+
+/**
+ * Wrapper de Axios con detección de errores HTML
+ */
+async function safeChatwootRequest(requestFn) {
+    if (!chatwootHealthy) {
+        throw new Error("Chatwoot está marcado como inactivo");
+    }
+
+    try {
+        const response = await requestFn();
+
+        // 🔴 DETECTAR ERROR HTML EN RESPUESTA
+        if (response.data && isHTMLErrorResponse(JSON.stringify(response.data))) {
+            markChatwootDown();
+            throw new Error("Chatwoot devolvió HTML de error (500)");
+        }
+
+        // 🟢 Si llegamos aquí, Chatwoot está funcionando
+        markChatwootUp();
+        return response;
+
+    } catch (error) {
+        // 🔴 DETECTAR ERROR HTML EN CATCH
+        const errorData = error.response?.data;
+        if (errorData && isHTMLErrorResponse(JSON.stringify(errorData))) {
+            markChatwootDown();
+            console.error("❌ Chatwoot caído (error HTML 500)");
+            throw new Error("Chatwoot devolvió HTML de error (500)");
+        }
+
+        throw error;
+    }
+}
+
 function toE164(phone) {
     let p = String(phone).replace(/\D/g, "");
     if (p.length === 10 && p.startsWith("3")) p = "57" + p;
@@ -45,9 +125,13 @@ function toE164(phone) {
 // ===============================
 async function getOrCreateContact(e164, name) {
     try {
-        const search = await axios.get(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/search`, {
-            params: { q: e164 }, headers
-        });
+        const search = await safeChatwootRequest(() =>
+            axios.get(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/search`, {
+                params: { q: e164 },
+                headers,
+                timeout: 5000 // 🔥 AGREGADO TIMEOUT
+            })
+        );
 
         const results = search.data?.payload || [];
         const existing = results.find(c => c.phone_number === e164);
@@ -57,11 +141,13 @@ async function getOrCreateContact(e164, name) {
         }
 
         console.log(`✨ Creando contacto nuevo: ${e164}`);
-        const res = await axios.post(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts`, {
-            name: name || e164,
-            phone_number: e164,
-            identifier: e164
-        }, { headers });
+        const res = await safeChatwootRequest(() =>
+            axios.post(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts`, {
+                name: name || e164,
+                phone_number: e164,
+                identifier: e164
+            }, { headers, timeout: 5000 })
+        );
 
         const newId = res.data?.payload?.contact?.id;
         console.log(`✅ Contacto creado ID: ${newId}`);
@@ -69,16 +155,20 @@ async function getOrCreateContact(e164, name) {
     } catch (e) {
         if (e.response?.data?.message?.includes('already been taken')) {
             console.log("⚠️ Error duplicado, reintentando búsqueda...");
-            const retry = await axios.get(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/search`, {
-                params: { q: e164 }, headers
-            });
+            const retry = await safeChatwootRequest(() =>
+                axios.get(`${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/search`, {
+                    params: { q: e164 },
+                    headers,
+                    timeout: 5000
+                })
+            );
             const found = retry.data?.payload?.find(c => c.phone_number === e164);
             if (found) {
                 console.log(`✅ Contacto encontrado en retry ID: ${found.id}`);
                 return found.id;
             }
         }
-        console.error("❌ Error getOrCreateContact:", e.response?.data || e.message);
+        console.error("❌ Error getOrCreateContact:", e.message);
         throw e;
     }
 }
@@ -95,9 +185,11 @@ async function getOrCreateConversation(e164, contactId) {
 
     try {
         console.log(`🔍 Buscando conversaciones del contacto ${contactId}...`);
-        const res = await axios.get(
-            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contactId}/conversations`,
-            { headers }
+        const res = await safeChatwootRequest(() =>
+            axios.get(
+                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contactId}/conversations`,
+                { headers, timeout: 5000 }
+            )
         );
 
         const conversations = res.data?.payload || [];
@@ -127,16 +219,18 @@ async function getOrCreateConversation(e164, contactId) {
         }
 
         console.log(`✨ No hay conversación abierta. Creando nueva...`);
-        const convo = await axios.post(
-            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`,
-            {
-                source_id: e164,
-                inbox_id: INBOX_ID,
-                contact_id: contactId,
-                status: "open",
-                assignee_id: 1
-            },
-            { headers }
+        const convo = await safeChatwootRequest(() =>
+            axios.post(
+                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations`,
+                {
+                    source_id: e164,
+                    inbox_id: INBOX_ID,
+                    contact_id: contactId,
+                    status: "open",
+                    assignee_id: 1
+                },
+                { headers, timeout: 5000 }
+            )
         );
 
         const convoId = convo.data?.id;
@@ -145,7 +239,7 @@ async function getOrCreateConversation(e164, contactId) {
         return convoId;
 
     } catch (error) {
-        console.error("❌ Error getOrCreateConversation:", error.response?.data || error.message);
+        console.error("❌ Error getOrCreateConversation:", error.message);
         return null;
     }
 }
@@ -153,14 +247,16 @@ async function getOrCreateConversation(e164, contactId) {
 // 🔥 FUNCIÓN AUXILIAR PARA ASIGNAR AGENTE
 async function asignarAgente(conversationId, agentId) {
     try {
-        await axios.post(
-            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/assignments`,
-            { assignee_id: agentId },
-            { headers }
+        await safeChatwootRequest(() =>
+            axios.post(
+                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/assignments`,
+                { assignee_id: agentId },
+                { headers, timeout: 5000 }
+            )
         );
         console.log(`👤 Agente ${agentId} asignado a conversación ${conversationId}`);
     } catch (err) {
-        console.error(`⚠️ Error asignando agente:`, err.response?.data || err.message);
+        console.error(`⚠️ Error asignando agente:`, err.message);
     }
 }
 
@@ -211,17 +307,20 @@ async function getTotalGastadoHistorico(phone) {
 }
 
 // ===============================
-// 🏷️ GESTIÓN DE ETIQUETAS
+// 🏷️ GESTIÓN DE ETIQUETAS (CORREGIDO)
 // ===============================
 
 export async function sincronizarEtiquetasCliente(phone) {
-    // 🔒 Prevenir sincronizaciones simultáneas
+    // 🔒 MEJORA: Verificar si ya hay sincronización en progreso
     if (syncLocks.has(phone)) {
-        console.log(`⏳ Sincronización ya en progreso para ${phone}, omitiendo duplicado`);
-        return; // ← CAMBIO: Solo return, no await
+        const existingLock = syncLocks.get(phone);
+        console.log(`⏳ Sincronización ya en progreso para ${phone}, esperando...`);
+        await existingLock; // 🔥 ESPERAR a que termine la sincronización existente
+        console.log(`✅ Sincronización anterior completada para ${phone}`);
+        return;
     }
 
-    // Crear promesa de sincronización
+    // 🔒 Crear promesa de sincronización
     let resolveLock;
     const lockPromise = new Promise(resolve => { resolveLock = resolve; });
     syncLocks.set(phone, lockPromise);
@@ -297,11 +396,9 @@ export async function sincronizarEtiquetasCliente(phone) {
     } catch (err) {
         console.error(`⚠️ Error sincronizando etiquetas:`, err.message);
     } finally {
-        // 🔓 Liberar lock después de 2 segundos
-        setTimeout(() => {
-            syncLocks.delete(phone);
-            resolveLock();
-        }, 2000); // ← CAMBIO: Mantener lock por 2 segundos para bloquear duplicados
+        // 🔓 Liberar lock inmediatamente
+        syncLocks.delete(phone);
+        resolveLock();
     }
 }
 
@@ -317,9 +414,11 @@ async function reemplazarEtiquetas(phone, labelNames) {
         console.log(`📋 Etiquetas objetivo:`, labelNames);
 
         // 🔥 PASO 1: OBTENER ETIQUETAS ACTUALES
-        const convoData = await axios.get(
-            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}`,
-            { headers }
+        const convoData = await safeChatwootRequest(() =>
+            axios.get(
+                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}`,
+                { headers, timeout: 5000 }
+            )
         );
 
         const etiquetasActuales = convoData.data?.labels || [];
@@ -328,13 +427,16 @@ async function reemplazarEtiquetas(phone, labelNames) {
         // 🔥 PASO 2: ELIMINAR TODAS LAS ETIQUETAS ACTUALES (una por una)
         for (const labelName of etiquetasActuales) {
             try {
-                await axios.post(
-                    `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`,
-                    { labels: [labelName] },
-                    {
-                        headers,
-                        params: { remove: true }
-                    }
+                await safeChatwootRequest(() =>
+                    axios.post(
+                        `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`,
+                        { labels: [labelName] },
+                        {
+                            headers,
+                            timeout: 5000,
+                            params: { remove: true }
+                        }
+                    )
                 );
                 console.log(`🗑️ Etiqueta eliminada: ${labelName}`);
             } catch (err) {
@@ -344,10 +446,12 @@ async function reemplazarEtiquetas(phone, labelNames) {
 
         // 🔥 PASO 3: AGREGAR NUEVAS ETIQUETAS (si hay)
         if (labelNames.length > 0) {
-            await axios.post(
-                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`,
-                { labels: labelNames },
-                { headers }
+            await safeChatwootRequest(() =>
+                axios.post(
+                    `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/labels`,
+                    { labels: labelNames },
+                    { headers, timeout: 5000 }
+                )
             );
             console.log(`✅ Nuevas etiquetas agregadas: [${labelNames.join(", ")}]`);
         } else {
@@ -357,7 +461,6 @@ async function reemplazarEtiquetas(phone, labelNames) {
     } catch (err) {
         console.error(`⚠️ Error reemplazando etiquetas:`, err.message);
         console.error(`⚠️ Status:`, err.response?.status);
-        console.error(`⚠️ Datos:`, err.response?.data);
     }
 }
 
@@ -447,10 +550,12 @@ async function actualizarAtributosContacto(phone, attributes) {
         const e164 = toE164(phone);
         const contactId = await getOrCreateContact(e164, e164);
 
-        await axios.put(
-            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contactId}`,
-            { custom_attributes: attributes },
-            { headers }
+        await safeChatwootRequest(() =>
+            axios.put(
+                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/contacts/${contactId}`,
+                { custom_attributes: attributes },
+                { headers, timeout: 5000 }
+            )
         );
 
         console.log(`📋 Atributos de contacto actualizados`);
@@ -467,10 +572,12 @@ async function actualizarAtributosConversacion(phone, attributes) {
 
         if (!conversationId) return;
 
-        await axios.post(
-            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/custom_attributes`,
-            { custom_attributes: attributes },
-            { headers }
+        await safeChatwootRequest(() =>
+            axios.post(
+                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/custom_attributes`,
+                { custom_attributes: attributes },
+                { headers, timeout: 5000 }
+            )
         );
 
         console.log(`📋 Atributos de conversación actualizados`);
@@ -510,12 +617,14 @@ export async function forwardToChatwoot(phone, name, messageObject) {
             console.log(`📎 Procesando multimedia tipo: ${type}`);
 
             const mediaMeta = await axios.get(`https://graph.facebook.com/v20.0/${mediaData.id}`, {
-                headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` }
+                headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` },
+                timeout: 5000
             });
 
             const fileStream = await axios.get(mediaMeta.data.url, {
                 headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` },
-                responseType: 'arraybuffer'
+                responseType: 'arraybuffer',
+                timeout: 10000
             });
 
             const form = new FormData();
@@ -530,10 +639,15 @@ export async function forwardToChatwoot(phone, name, messageObject) {
                 contentType: mediaMeta.data.mime_type
             });
 
-            await axios.post(
-                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
-                form,
-                { headers: { ...headers, ...form.getHeaders() } }
+            await safeChatwootRequest(() =>
+                axios.post(
+                    `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
+                    form,
+                    {
+                        headers: { ...headers, ...form.getHeaders() },
+                        timeout: 10000
+                    }
+                )
             );
             console.log(`✅ Multimedia enviado a Chatwoot`);
             return;
@@ -546,15 +660,17 @@ export async function forwardToChatwoot(phone, name, messageObject) {
         }
 
         if (content) {
-            await axios.post(
-                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
-                { content: content, message_type: "incoming" },
-                { headers }
+            await safeChatwootRequest(() =>
+                axios.post(
+                    `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
+                    { content: content, message_type: "incoming" },
+                    { headers, timeout: 5000 }
+                )
             );
             console.log(`✅ Mensaje del cliente enviado: "${content.substring(0, 50)}"`);
         }
     } catch (err) {
-        console.error("❌ Error forwardToChatwoot:", err.response?.data || err.message);
+        console.error("❌ Error forwardToChatwoot:", err.message);
     }
 }
 
@@ -569,10 +685,12 @@ export async function sendBotMessageToChatwoot(phone, text) {
         const conversationId = await getOrCreateConversation(e164, contactId);
         if (!conversationId) return;
 
-        const res = await axios.post(
-            `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
-            { content: text, message_type: "outgoing", private: false },
-            { headers }
+        const res = await safeChatwootRequest(() =>
+            axios.post(
+                `${CHATWOOT_BASE}/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`,
+                { content: text, message_type: "outgoing", private: false },
+                { headers, timeout: 5000 }
+            )
         );
 
         if (res.data?.id) {
@@ -581,6 +699,6 @@ export async function sendBotMessageToChatwoot(phone, text) {
             console.log(`✅ Mensaje del bot enviado a Chatwoot`);
         }
     } catch (err) {
-        console.error("❌ Error sendBotMessageToChatwoot:", err.response?.data || err.message);
+        console.error("❌ Error sendBotMessageToChatwoot:", err.message);
     }
 }
