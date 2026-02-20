@@ -726,7 +726,7 @@ export const handleMessage = async (req, res) => {
     // Comando: /pconsultar - Consultar órdenes de proveedor
     if (inputLower === '/pconsultar') {
       pconsultarFlowStates.set(from, { step: 'waiting_phone' });
-      await sendWhatsAppMessage(from, '🔍 *CONSULTAR ÓRDENES DE PROVEEDOR*\n\n¿Cuál es el número del proveedor? sin +57\n\n_Escribe /no para cancelar');
+      await sendWhatsAppMessage(from, '🔍 *CONSULTAR ÓRDENES DE PROVEEDOR*\n\n¿Cuál es el número del proveedor? sin +57');
       return res.sendStatus(200);
     }
 
@@ -771,7 +771,7 @@ export const handleMessage = async (req, res) => {
         return res.sendStatus(200);
       }
     }
-    
+
     // =====================================================
     // 🟦 MENU
     // =====================================================
