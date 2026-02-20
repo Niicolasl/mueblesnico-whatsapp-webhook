@@ -62,6 +62,9 @@ import {
 } from '../utils/supplierTemplates.js';
 import { sendMessage, sendWhatsAppMessage, sendWhatsAppTemplate } from "./whatsappSender.js";
 
+import { getAllActivePedidos, getPedidosActivosByPhone } from '../db/orders.js';
+import { formatPedidosActivos, formatPedidosCliente, pedidoNoEncontrado } from '../utils/messageTemplates.js';
+
 import {
   crearPlantillaAbonoRegistrado,
   crearPlantillaAbonoTotalPagado,
@@ -269,7 +272,7 @@ export const handleMessage = async (req, res) => {
     const saludos = [
       "hola", "holi", "hla", "buenas", "buen día", "buen dia",
       "buenos días", "buenos dias", "buenas tardes", "buenas noches",
-      "holaa", "buenass", "saludos"
+      "holaa", "buenass", "saludos, hi, hello, helloo"
     ];
 
     const esSaludo = saludos.some(
@@ -728,6 +731,47 @@ export const handleMessage = async (req, res) => {
     }
 
     // ============== FIN COMANDOS DE PROVEEDORES ==============
+
+
+    if (esAdmin && inputLower.startsWith('/pedidos')) {
+      // Extraer el argumento (teléfono o búsqueda)
+      const args = input.trim().split(/\s+/);
+      const busqueda = args.slice(1).join(' ').trim();
+
+      if (busqueda) {
+        // Caso: /pedidos 3204128555 (buscar por teléfono)
+        const telefono = busqueda.replace(/\D/g, '');
+
+        if (telefono.length === 10) {
+          const pedidos = await getPedidosActivosByPhone(telefono);
+
+          if (pedidos.length === 0) {
+            await sendWhatsAppMessage(from, pedidoNoEncontrado(telefono));
+            return res.sendStatus(200);
+          }
+
+          const mensaje = formatPedidosCliente(pedidos, telefono);
+          await sendWhatsAppMessage(from, mensaje);
+          return res.sendStatus(200);
+        } else {
+          await sendWhatsAppMessage(from, '❌ El número debe tener 10 dígitos.\n\n_Ejemplo: /pedidos 3204128555_');
+          return res.sendStatus(200);
+        }
+      } else {
+        // Caso: /pedidos (listar todos los activos)
+        const pedidos = await getAllActivePedidos(10); // Límite de 10
+
+        if (pedidos.length === 0) {
+          await sendWhatsAppMessage(from, '📭 No hay pedidos activos en este momento.');
+          return res.sendStatus(200);
+        }
+
+        const mensaje = formatPedidosActivos(pedidos);
+        await sendWhatsAppMessage(from, mensaje);
+        return res.sendStatus(200);
+      }
+    }
+    
     // =====================================================
     // 🟦 MENU
     // =====================================================

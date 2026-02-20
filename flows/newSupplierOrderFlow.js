@@ -1,4 +1,4 @@
-import { getOrCreateSupplier } from '../db/suppliers.js';
+import { getOrCreateSupplier, findSupplierByPhone } from '../db/suppliers.js';
 import { createSupplierOrder } from '../db/supplierOrders.js';
 import { sendWhatsAppMessage, sendWhatsAppTemplate } from '../services/whatsappSender.js';
 
@@ -6,8 +6,8 @@ import { sendWhatsAppMessage, sendWhatsAppTemplate } from '../services/whatsappS
 const flowStates = new Map();
 
 const FLOW_STEPS = {
-    WAITING_NAME: 'waiting_name',
     WAITING_PHONE: 'waiting_phone',
+    WAITING_NAME: 'waiting_name',
     WAITING_DESCRIPTION: 'waiting_description',
     WAITING_AMOUNT: 'waiting_amount',
     WAITING_CONFIRMATION: 'waiting_confirmation'
@@ -18,11 +18,11 @@ const FLOW_STEPS = {
  */
 export function startSupplierOrderFlow(adminPhone) {
     flowStates.set(adminPhone, {
-        step: FLOW_STEPS.WAITING_NAME,
+        step: FLOW_STEPS.WAITING_PHONE,
         data: {}
     });
 
-    return '👷 *NUEVA ORDEN A PROVEEDOR*\n\n¿Cuál es el *nombre del proveedor*?';
+    return '👷 *NUEVA ORDEN A PROVEEDOR*\n\n📱 ¿Cuál es el *número de WhatsApp* del proveedor?\n\nsin +57';
 }
 
 /**
@@ -37,11 +37,11 @@ export async function processSupplierOrderFlow(adminPhone, message) {
 
     try {
         switch (state.step) {
-            case FLOW_STEPS.WAITING_NAME:
-                return await handleNameStep(adminPhone, message, state);
-
             case FLOW_STEPS.WAITING_PHONE:
                 return await handlePhoneStep(adminPhone, message, state);
+
+            case FLOW_STEPS.WAITING_NAME:
+                return await handleNameStep(adminPhone, message, state);
 
             case FLOW_STEPS.WAITING_DESCRIPTION:
                 return await handleDescriptionStep(adminPhone, message, state);
@@ -64,24 +64,7 @@ export async function processSupplierOrderFlow(adminPhone, message) {
 }
 
 /**
- * Paso 1: Nombre del proveedor
- */
-async function handleNameStep(adminPhone, message, state) {
-    const nombre = message.trim();
-
-    if (!nombre || nombre.length < 2) {
-        return '❌ El nombre debe tener al menos 2 caracteres. Intenta nuevamente:';
-    }
-
-    state.data.nombre = nombre;
-    state.step = FLOW_STEPS.WAITING_PHONE;
-    flowStates.set(adminPhone, state);
-
-    return '📱 ¿Cuál es el *número de WhatsApp* del proveedor? sin +57';
-}
-
-/**
- * Paso 2: Teléfono del proveedor
+ * Paso 1: Teléfono del proveedor (PRIMERO)
  */
 async function handlePhoneStep(adminPhone, message, state) {
     const phone = message.replace(/\D/g, '');
@@ -91,10 +74,42 @@ async function handlePhoneStep(adminPhone, message, state) {
     }
 
     state.data.phone = phone;
+
+    // 🔍 Buscar si el proveedor ya existe
+    const existingSupplier = await findSupplierByPhone(phone);
+
+    if (existingSupplier) {
+        // ✅ Proveedor existe → Saltar paso de nombre
+        state.data.nombre = existingSupplier.name;
+        state.data.supplierId = existingSupplier.id;
+        state.step = FLOW_STEPS.WAITING_DESCRIPTION;
+        flowStates.set(adminPhone, state);
+
+        return `✅ Proveedor encontrado: *${existingSupplier.name}*\n\n🛠️ Describe el *trabajo* que realizará: `;
+    } else {
+        // ❌ Proveedor NO existe → Pedir nombre
+        state.step = FLOW_STEPS.WAITING_NAME;
+        flowStates.set(adminPhone, state);
+
+        return '👤 Este es un *nuevo proveedor*.\n\n¿Cuál es su *nombre*?';
+    }
+}
+
+/**
+ * Paso 2: Nombre del proveedor (SOLO si es nuevo)
+ */
+async function handleNameStep(adminPhone, message, state) {
+    const nombre = message.trim();
+
+    if (!nombre || nombre.length < 2) {
+        return '❌ El nombre debe tener al menos 2 caracteres. Intenta nuevamente:';
+    }
+
+    state.data.nombre = nombre;
     state.step = FLOW_STEPS.WAITING_DESCRIPTION;
     flowStates.set(adminPhone, state);
 
-    return '🛠️ Describe brevemente el *trabajo* que realizará el proveedor: ';
+    return '🛠️ Describe el *trabajo* que realizará el proveedor:';
 }
 
 /**
@@ -111,7 +126,7 @@ async function handleDescriptionStep(adminPhone, message, state) {
     state.step = FLOW_STEPS.WAITING_AMOUNT;
     flowStates.set(adminPhone, state);
 
-    return '💰 ¿Cuál es el *valor total* acordado? ';
+    return '💰 ¿Cuál es el *valor total* acordado?';
 }
 
 /**
@@ -119,7 +134,7 @@ async function handleDescriptionStep(adminPhone, message, state) {
  */
 async function handleAmountStep(adminPhone, message, state) {
     const base = parseFloat(message.replace(/\D/g, ''));
-    const valor = base * 1000; 
+    const valor = base * 1000; // 🔥 Multiplica por 1000 automáticamente
 
     if (isNaN(valor) || valor <= 0) {
         return '❌ Debe ser un valor numérico mayor a cero.\n\nIntenta nuevamente:';
@@ -160,7 +175,16 @@ async function handleConfirmationStep(adminPhone, message, state) {
     }
 
     // Crear proveedor (si no existe) y orden
-    const supplier = await getOrCreateSupplier(state.data.phone, state.data.nombre);
+    let supplier;
+
+    if (state.data.supplierId) {
+        // Proveedor ya existe
+        supplier = { id: state.data.supplierId };
+    } else {
+        // Crear nuevo proveedor
+        supplier = await getOrCreateSupplier(state.data.phone, state.data.nombre);
+    }
+
     const orden = await createSupplierOrder(
         supplier.id,
         state.data.descripcion,

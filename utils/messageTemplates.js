@@ -180,6 +180,167 @@ export const infoMediosPago = () => ({
   }
 });
 
+export function formatPedidosActivos(pedidos) {
+  if (!pedidos || pedidos.length === 0) {
+    return '📭 No hay pedidos activos en este momento.';
+  }
+
+  // Agrupar por estado
+  const porEstado = {
+    'pendiente de anticipo': [],
+    'EN_FABRICACION': [],
+    'LISTO': [],
+    'ENTREGADO': [],
+    'PAGADO': []
+  };
+
+  pedidos.forEach(pedido => {
+    const estado = pedido.estado_pedido;
+
+    if (estado === 'pendiente de anticipo') {
+      porEstado['pendiente de anticipo'].push(pedido);
+    } else if (estado === 'EN_FABRICACION' || estado === 'pendiente de inicio') {
+      porEstado['EN_FABRICACION'].push(pedido);
+    } else if (estado === 'LISTO') {
+      porEstado['LISTO'].push(pedido);
+    } else if (estado === 'ENTREGADO') {
+      porEstado['ENTREGADO'].push(pedido);
+    } else if (estado === 'PAGADO') {
+      porEstado['PAGADO'].push(pedido);
+    }
+  });
+
+  let mensaje = `📋 *PEDIDOS ACTIVOS* (${pedidos.length})\n\n`;
+
+  // 🟡 PENDIENTE DE ANTICIPO
+  if (porEstado['pendiente de anticipo'].length > 0) {
+    mensaje += `🟡 *PENDIENTE DE ANTICIPO* (${porEstado['pendiente de anticipo'].length})\n`;
+    mensaje += '━━━━━━━━━━━━━━━━━━\n';
+
+    porEstado['pendiente de anticipo'].forEach(p => {
+      mensaje += `\n${p.order_code} | ${p.nombre_cliente}\n`;
+      mensaje += `🛠️ ${p.descripcion_trabajo}\n`;
+      mensaje += `💰 Saldo: $${parseFloat(p.saldo_pendiente).toLocaleString()}\n`;
+    });
+    mensaje += '\n';
+  }
+
+  // 🔵 EN FABRICACIÓN
+  if (porEstado['EN_FABRICACION'].length > 0) {
+    mensaje += `🔵 *EN FABRICACIÓN* (${porEstado['EN_FABRICACION'].length})\n`;
+    mensaje += '━━━━━━━━━━━━━━━━━━\n';
+
+    porEstado['EN_FABRICACION'].forEach(p => {
+      mensaje += `\n${p.order_code} | ${p.nombre_cliente}\n`;
+      mensaje += `🛠️ ${p.descripcion_trabajo}\n`;
+      mensaje += `💰 Saldo: $${parseFloat(p.saldo_pendiente).toLocaleString()}\n`;
+    });
+    mensaje += '\n';
+  }
+
+  // ✅ LISTO
+  if (porEstado['LISTO'].length > 0) {
+    mensaje += `✅ *LISTO PARA ENTREGA* (${porEstado['LISTO'].length})\n`;
+    mensaje += '━━━━━━━━━━━━━━━━━━\n';
+
+    porEstado['LISTO'].forEach(p => {
+      mensaje += `\n${p.order_code} | ${p.nombre_cliente}\n`;
+      mensaje += `🛠️ ${p.descripcion_trabajo}\n`;
+
+      if (parseFloat(p.saldo_pendiente) > 0) {
+        mensaje += `💰 Saldo: $${parseFloat(p.saldo_pendiente).toLocaleString()}\n`;
+      } else {
+        mensaje += `✅ Pagado totalmente\n`;
+      }
+    });
+    mensaje += '\n';
+  }
+
+  // 🚚 ENTREGADO (pero con saldo pendiente)
+  if (porEstado['ENTREGADO'].length > 0) {
+    mensaje += `🚚 *ENTREGADO - SALDO PENDIENTE* (${porEstado['ENTREGADO'].length})\n`;
+    mensaje += '━━━━━━━━━━━━━━━━━━\n';
+
+    porEstado['ENTREGADO'].forEach(p => {
+      mensaje += `\n${p.order_code} | ${p.nombre_cliente}\n`;
+      mensaje += `🛠️ ${p.descripcion_trabajo}\n`;
+      mensaje += `💰 Saldo: $${parseFloat(p.saldo_pendiente).toLocaleString()}\n`;
+    });
+    mensaje += '\n';
+  }
+
+  // 💚 PAGADO (pero no entregado)
+  if (porEstado['PAGADO'].length > 0) {
+    mensaje += `💚 *PAGADO - PENDIENTE ENTREGA* (${porEstado['PAGADO'].length})\n`;
+    mensaje += '━━━━━━━━━━━━━━━━━━\n';
+
+    porEstado['PAGADO'].forEach(p => {
+      mensaje += `\n${p.order_code} | ${p.nombre_cliente}\n`;
+      mensaje += `🛠️ ${p.descripcion_trabajo}\n`;
+      mensaje += `✅ Pagado totalmente\n`;
+    });
+  }
+
+  return mensaje.trim();
+}
+
+/**
+ * Formatear pedidos de un cliente específico
+ */
+export function formatPedidosCliente(pedidos, telefono) {
+  if (!pedidos || pedidos.length === 0) {
+    return `📭 No hay pedidos activos para el número *${telefono}*`;
+  }
+
+  const cliente = pedidos[0].nombre_cliente;
+
+  let mensaje = `👤 *PEDIDOS DE ${cliente.toUpperCase()}*\n`;
+  mensaje += `📱 ${telefono}\n\n`;
+  mensaje += `📦 *${pedidos.length} pedido(s) activo(s)*\n`;
+  mensaje += '━━━━━━━━━━━━━━━━━━\n';
+
+  pedidos.forEach((p, index) => {
+    const estadoEmoji = {
+      'pendiente de anticipo': '🟡',
+      'EN_FABRICACION': '🔵',
+      'pendiente de inicio': '🔵',
+      'LISTO': '✅',
+      'PAGADO': '💚',
+      'ENTREGADO': '✅'
+    };
+
+    const emoji = estadoEmoji[p.estado_pedido] || '📦';
+    const estadoTexto = p.estado_pedido === 'pendiente de anticipo'
+      ? 'Pendiente anticipo'
+      : p.estado_pedido.replace('_', ' ');
+
+    mensaje += `\n${emoji} *${p.order_code}*\n`;
+    mensaje += `🛠️ ${p.descripcion_trabajo}\n`;
+    mensaje += `📌 Estado: ${estadoTexto}\n`;
+    mensaje += `💰 Total: $${parseFloat(p.valor_total).toLocaleString()}\n`;
+    mensaje += `💵 Abonado: $${parseFloat(p.valor_abonado).toLocaleString()}\n`;
+
+    if (parseFloat(p.saldo_pendiente) > 0) {
+      mensaje += `📊 Saldo: $${parseFloat(p.saldo_pendiente).toLocaleString()}\n`;
+    } else {
+      mensaje += `✅ Pagado totalmente\n`;
+    }
+
+    if (index < pedidos.length - 1) {
+      mensaje += '\n━━━━━━━━━━━━━━━━━━\n';
+    }
+  });
+
+  return mensaje;
+}
+
+/**
+ * Mensaje cuando no se encuentra el pedido/cliente
+ */
+export function pedidoNoEncontrado(busqueda) {
+  return `❌ No se encontraron pedidos activos para: *${busqueda}*`;
+}
+
 /* =====================================================
    🧠 HELPERS
 ===================================================== */

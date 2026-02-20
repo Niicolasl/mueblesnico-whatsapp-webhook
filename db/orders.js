@@ -180,4 +180,69 @@ export async function getPedidosByPhone(telefono) {
     return rows || [];
 }
 
+export async function getAllActivePedidos(limit = 10) {
+    const { rows } = await pool.query(
+        `
+    SELECT 
+      id,
+      order_code,
+      nombre_cliente,
+      numero_whatsapp,
+      descripcion_trabajo,
+      valor_total,
+      valor_abonado,
+      saldo_pendiente,
+      estado_pedido,
+      fecha_creacion,
+      fecha_aprox_entrega,
+      fue_entregado
+    FROM orders
+    WHERE cancelado = false
+      AND NOT (
+        fue_entregado = true 
+        AND saldo_pendiente = 0
+      )
+    ORDER BY fecha_creacion DESC
+    LIMIT $1
+    `,
+        [limit]
+    );
 
+    return rows || [];
+}
+
+/**
+ * Obtener pedidos activos de un cliente específico por teléfono
+ */
+export async function getPedidosActivosByPhone(telefono) {
+    const clean = normalizarTelefono(telefono);
+
+    const { rows } = await pool.query(
+        `
+    SELECT 
+      id,
+      order_code,
+      nombre_cliente,
+      numero_whatsapp,
+      descripcion_trabajo,
+      valor_total,
+      valor_abonado,
+      saldo_pendiente,
+      estado_pedido,
+      fecha_creacion,
+      fecha_aprox_entrega,
+      fue_entregado
+    FROM orders
+    WHERE numero_whatsapp = $1
+      AND cancelado = false
+      AND NOT (
+        fue_entregado = true 
+        AND saldo_pendiente = 0
+      )
+    ORDER BY fecha_creacion DESC
+    `,
+        [clean]
+    );
+
+    return rows || [];
+}
